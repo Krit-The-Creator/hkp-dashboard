@@ -122,7 +122,7 @@
     /* Main content */
     .main-content {
       margin-left: 220px;
-      padding: 24px;
+      padding: 16px 20px;
       min-height: calc(100vh - 56px);
     }
 
@@ -415,7 +415,7 @@
 <div class="main-content">
 
   <!-- Plant schematic banner -->
-  <div class="plant-schematic mb-6 fade-up" style="margin-bottom:20px;">
+  <div class="plant-schematic mb-6 fade-up" style="margin-bottom:14px;">
     <div class="schematic-bg"></div>
     <div style="position:relative;z-index:1;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
@@ -431,111 +431,87 @@
       </div>
 
       <!-- Single Shaft 2-Block label -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-        <span style="font-size:10px;color:#484f58;font-weight:600;letter-spacing:1px;text-transform:uppercase;" data-th="โครงแบบ Single Shaft · 2 บล็อก" data-en="Single Shaft Configuration · 2 Blocks">Single Shaft Configuration · 2 Blocks</span>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <span style="font-size:10px;color:#484f58;font-weight:600;letter-spacing:1px;text-transform:uppercase;" data-th="โครงแบบ Single Shaft · 2 บล็อก" data-en="Single Shaft Configuration · 2 Blocks">โครงแบบ Single Shaft · 2 บล็อก</span>
         <div style="flex:1;height:1px;background:#21262d;"></div>
         <span class="badge badge-blue" style="font-size:10px;padding:2px 8px;">CCPP</span>
       </div>
 
-      <!-- Plant Flow Diagram -->
-      <div style="display:flex;align-items:center;justify-content:center;gap:0;padding:4px 0;overflow-x:auto;">
+      <!-- Plant Flow Diagram — all nodes same height via flex row align-items:center, boxes fixed height -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:0;overflow-x:auto;">
 
         <!-- PTT Fuel Gas Metering -->
-        <div style="text-align:center;min-width:90px;">
-          <div style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.25);border-radius:10px;padding:8px 10px;position:relative;">
-            <div style="width:28px;height:28px;background:rgba(88,166,255,0.15);border-radius:6px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
-              </svg>
-            </div>
-            <div style="font-size:9.5px;font-weight:700;color:#58a6ff;line-height:1.3;">PTT Fuel Gas</div>
-            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;">Metering Station</div>
-          </div>
-          <div style="font-size:9px;color:#8b949e;margin-top:5px;" data-th="สถานีวัดก๊าซ" data-en="Fuel Supply">สถานีวัดก๊าซ</div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:76px;min-width:100px;background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.25);border-radius:10px;padding:0 12px;gap:3px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <div style="font-size:9.5px;font-weight:700;color:#58a6ff;text-align:center;line-height:1.2;">PTT Fuel Gas</div>
+          <div style="font-size:8px;color:#6e7681;text-align:center;" data-th="สถานีวัดก๊าซ" data-en="Metering Station">สถานีวัดก๊าซ</div>
         </div>
 
         <!-- Arrow -->
-        <div style="display:flex;align-items:center;padding:0 6px;">
-          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(88,166,255,0.4),rgba(88,166,255,0.8));position:relative;">
-            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(88,166,255,0.8);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
-          </div>
+        <div style="width:30px;height:2px;background:linear-gradient(90deg,rgba(88,166,255,0.4),rgba(88,166,255,0.8));position:relative;flex-shrink:0;">
+          <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(88,166,255,0.8);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
         </div>
 
         <!-- Gas Turbine -->
-        <div style="text-align:center;min-width:105px;">
-          <div style="background:rgba(31,111,235,0.12);border:1px solid rgba(31,111,235,0.4);border-radius:10px;padding:8px 12px;position:relative;">
-            <div style="font-size:10px;font-weight:700;color:#58a6ff;">Gas Turbine</div>
-            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">Block 1 · Block 2</div>
-            <div style="font-size:15px;font-weight:700;color:#e6edf3;margin-top:4px;">390 <span style="font-size:9px;color:#8b949e;">MW</span></div>
-            <div style="position:absolute;top:4px;right:6px;"><span class="dot dot-green" style="width:5px;height:5px;display:inline-block;"></span></div>
-          </div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:76px;min-width:110px;background:rgba(31,111,235,0.12);border:1px solid rgba(31,111,235,0.4);border-radius:10px;padding:0 12px;position:relative;gap:2px;">
+          <div style="font-size:10px;font-weight:700;color:#58a6ff;">Gas Turbine</div>
+          <div style="font-size:8px;color:#6e7681;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">บล็อก 1 · บล็อก 2</div>
+          <div style="font-size:16px;font-weight:700;color:#e6edf3;">390 <span style="font-size:9px;color:#8b949e;">MW</span></div>
+          <span class="dot dot-green" style="position:absolute;top:6px;right:8px;width:5px;height:5px;"></span>
         </div>
 
         <!-- Arrow -->
-        <div style="display:flex;align-items:center;padding:0 6px;">
-          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(210,153,34,0.5),rgba(210,153,34,0.9));position:relative;">
-            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(210,153,34,0.9);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
-          </div>
+        <div style="width:30px;height:2px;background:linear-gradient(90deg,rgba(210,153,34,0.5),rgba(210,153,34,0.9));position:relative;flex-shrink:0;">
+          <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(210,153,34,0.9);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
         </div>
 
         <!-- HRSG -->
-        <div style="text-align:center;min-width:95px;">
-          <div style="background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.3);border-radius:10px;padding:8px 12px;">
-            <div style="font-size:10px;font-weight:700;color:#d2991f;">HRSG</div>
-            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">Block 1 · Block 2</div>
-            <div style="font-size:15px;font-weight:700;color:#e6edf3;margin-top:4px;">98.2 <span style="font-size:9px;color:#8b949e;">%eff</span></div>
-          </div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:76px;min-width:100px;background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.3);border-radius:10px;padding:0 12px;gap:2px;">
+          <div style="font-size:10px;font-weight:700;color:#d2991f;">HRSG</div>
+          <div style="font-size:8px;color:#6e7681;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">บล็อก 1 · บล็อก 2</div>
+          <div style="font-size:16px;font-weight:700;color:#e6edf3;">98.2 <span style="font-size:9px;color:#8b949e;">%eff</span></div>
         </div>
 
         <!-- Arrow -->
-        <div style="display:flex;align-items:center;padding:0 6px;">
-          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(210,153,34,0.5),rgba(63,185,80,0.7));position:relative;">
-            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(63,185,80,0.7);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
-          </div>
+        <div style="width:30px;height:2px;background:linear-gradient(90deg,rgba(210,153,34,0.5),rgba(63,185,80,0.7));position:relative;flex-shrink:0;">
+          <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(63,185,80,0.7);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
         </div>
 
         <!-- Steam Turbine -->
-        <div style="text-align:center;min-width:105px;">
-          <div style="background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.3);border-radius:10px;padding:8px 12px;position:relative;">
-            <div style="font-size:10px;font-weight:700;color:#3fb950;">Steam Turbine</div>
-            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">Block 1 · Block 2</div>
-            <div style="font-size:15px;font-weight:700;color:#e6edf3;margin-top:4px;">310 <span style="font-size:9px;color:#8b949e;">MW</span></div>
-            <div style="position:absolute;top:4px;right:6px;"><span class="dot dot-green" style="width:5px;height:5px;display:inline-block;"></span></div>
-          </div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:76px;min-width:110px;background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.3);border-radius:10px;padding:0 12px;position:relative;gap:2px;">
+          <div style="font-size:10px;font-weight:700;color:#3fb950;">Steam Turbine</div>
+          <div style="font-size:8px;color:#6e7681;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">บล็อก 1 · บล็อก 2</div>
+          <div style="font-size:16px;font-weight:700;color:#e6edf3;">310 <span style="font-size:9px;color:#8b949e;">MW</span></div>
+          <span class="dot dot-green" style="position:absolute;top:6px;right:8px;width:5px;height:5px;"></span>
         </div>
 
         <!-- Arrow -->
-        <div style="display:flex;align-items:center;padding:0 6px;">
-          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(63,185,80,0.5),rgba(63,185,80,0.9));position:relative;">
-            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(63,185,80,0.9);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
-          </div>
+        <div style="width:30px;height:2px;background:linear-gradient(90deg,rgba(63,185,80,0.5),rgba(63,185,80,0.9));position:relative;flex-shrink:0;">
+          <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(63,185,80,0.9);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
         </div>
 
         <!-- Generator -->
-        <div style="text-align:center;min-width:95px;">
-          <div style="background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);border-radius:10px;padding:8px 12px;">
-            <div style="font-size:10px;font-weight:700;color:#3fb950;" data-th="เครื่องกำเนิดไฟฟ้า" data-en="Generator">Generator</div>
-            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">Block 1 · Block 2</div>
-            <div style="font-size:15px;font-weight:700;color:#e6edf3;margin-top:4px;">700 <span style="font-size:9px;color:#8b949e;">MW</span></div>
-          </div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:76px;min-width:100px;background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);border-radius:10px;padding:0 12px;gap:2px;">
+          <div style="font-size:10px;font-weight:700;color:#3fb950;" data-th="เครื่องกำเนิดไฟฟ้า" data-en="Generator">เครื่องกำเนิดไฟฟ้า</div>
+          <div style="font-size:8px;color:#6e7681;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">บล็อก 1 · บล็อก 2</div>
+          <div style="font-size:16px;font-weight:700;color:#e6edf3;">700 <span style="font-size:9px;color:#8b949e;">MW</span></div>
         </div>
 
         <!-- Arrow -->
-        <div style="display:flex;align-items:center;padding:0 6px;">
-          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(63,185,80,0.5),rgba(240,246,252,0.6));position:relative;">
-            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(240,246,252,0.6);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
-          </div>
+        <div style="width:30px;height:2px;background:linear-gradient(90deg,rgba(63,185,80,0.4),rgba(240,246,252,0.5));position:relative;flex-shrink:0;">
+          <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(240,246,252,0.5);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
         </div>
 
         <!-- Grid -->
-        <div style="text-align:center;min-width:80px;">
-          <div style="width:44px;height:44px;background:rgba(240,246,252,0.06);border:1px solid rgba(240,246,252,0.2);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto;">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0f6fc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
-              <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
-            </svg>
-          </div>
-          <div style="font-size:9px;color:#8b949e;margin-top:5px;" data-th="สายส่งไฟฟ้า" data-en="Grid">สายส่งไฟฟ้า</div>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:76px;min-width:90px;background:rgba(240,246,252,0.05);border:1px solid rgba(240,246,252,0.15);border-radius:10px;padding:0 12px;gap:3px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#adbac7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">
+            <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+            <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+          </svg>
+          <div style="font-size:9.5px;font-weight:700;color:#adbac7;text-align:center;" data-th="สายส่งไฟฟ้า" data-en="Grid">สายส่งไฟฟ้า</div>
+          <div style="font-size:8px;color:#6e7681;">Grid</div>
         </div>
 
       </div>
@@ -543,7 +519,7 @@
   </div>
 
   <!-- KPI Row -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
 
     <!-- Heat Rate -->
     <div class="card fade-up">
@@ -611,91 +587,89 @@
 
   </div>
 
-  <!-- Charts Row -->
-  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px;">
+  <!-- Charts Row — combined toggle chart + right column -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:16px;">
 
-    <!-- Output Load Chart -->
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <!-- Combined Chart Card with Toggle -->
+    <div class="card" style="padding:14px 16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
         <div>
-          <div class="card-title" style="margin-bottom:2px;" data-th="กำลังผลิตจ่ายกริดรายวัน" data-en="Daily Output Load to Grid">Daily Output Load to Grid</div>
-          <div style="font-size:11px;color:#8b949e;" data-th="แผน vs จริง (MW)" data-en="Plan vs Actual (MW)">Plan vs Actual (MW)</div>
+          <div id="chartMainTitle" class="card-title" style="margin-bottom:2px;" data-th="กำลังผลิตจ่ายกริดรายวัน" data-en="Daily Output Load to Grid">กำลังผลิตจ่ายกริดรายวัน</div>
+          <div id="chartMainSub" style="font-size:11px;color:#8b949e;" data-th="แผน vs จริง (MW)" data-en="Plan vs Actual (MW)">แผน vs จริง (MW)</div>
         </div>
-        <div style="display:flex;gap:16px;font-size:11px;">
-          <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:10px;height:3px;background:#58a6ff;border-radius:2px;"></span><span data-th="จริง" data-en="Actual">Actual</span></span>
-          <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:10px;height:3px;background:#484f58;border-radius:2px;border-top:1px dashed #6e7681;"></span><span data-th="แผน" data-en="Plan">Plan</span></span>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <!-- Legend (output chart) -->
+          <div id="legendOutput" style="display:flex;gap:12px;font-size:11px;">
+            <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:10px;height:3px;background:#58a6ff;border-radius:2px;"></span><span data-th="จริง" data-en="Actual">จริง</span></span>
+            <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:10px;height:2px;background:#484f58;border-top:1px dashed #6e7681;"></span><span data-th="แผน" data-en="Plan">แผน</span></span>
+          </div>
+          <!-- Toggle buttons -->
+          <div style="display:flex;background:#21262d;border-radius:6px;padding:3px;gap:2px;">
+            <button id="btnOutput" onclick="switchChart('output')" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:#30363d;color:#e6edf3;transition:all 0.15s;" data-th="กำลังผลิต" data-en="Output">กำลังผลิต</button>
+            <button id="btnHeatRate" onclick="switchChart('heatrate')" style="padding:4px 10px;border-radius:4px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:transparent;color:#8b949e;transition:all 0.15s;" data-th="Heat Rate" data-en="Heat Rate">Heat Rate</button>
+          </div>
         </div>
       </div>
-      <canvas id="outputChart" height="180"></canvas>
-    </div>
-
-    <!-- Heat Rate Gauge -->
-    <div class="card" style="display:flex;flex-direction:column;align-items:center;">
-      <div class="card-title" style="align-self:flex-start;" data-th="อัตราความร้อนเฉลี่ย" data-en="Avg. Heat Rate">Avg. Heat Rate</div>
-      <canvas id="heatGauge" width="200" height="120" style="margin:8px auto 0;"></canvas>
-      <div style="text-align:center;margin-top:-10px;">
-        <div style="font-size:26px;font-weight:700;color:#58a6ff;">7,842</div>
-        <div style="font-size:11px;color:#8b949e;">kJ/kWh</div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;margin-top:14px;">
-        <div style="text-align:center;padding:8px;background:#21262d;border-radius:6px;">
-          <div style="font-size:10px;color:#8b949e;" data-th="ต่ำสุด" data-en="Min">Min</div>
-          <div style="font-size:14px;font-weight:700;color:#3fb950;">7,650</div>
-        </div>
-        <div style="text-align:center;padding:8px;background:#21262d;border-radius:6px;">
-          <div style="font-size:10px;color:#8b949e;" data-th="สูงสุด" data-en="Max">Max</div>
-          <div style="font-size:14px;font-weight:700;color:#f85149;">8,120</div>
-        </div>
+      <div style="position:relative;">
+        <canvas id="outputChart" height="155"></canvas>
+        <canvas id="heatRateChart" height="155" style="display:none;"></canvas>
       </div>
     </div>
-  </div>
 
-  <!-- Second charts row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+    <!-- Right column: Heat Gauge + Energy Breakdown -->
+    <div style="display:flex;flex-direction:column;gap:16px;">
 
-    <!-- Heat Rate Trend -->
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div>
-          <div class="card-title" style="margin-bottom:2px;" data-th="แนวโน้มอัตราความร้อน" data-en="Heat Rate Trend">Heat Rate Trend</div>
-          <div style="font-size:11px;color:#8b949e;" data-th="รายชั่วโมง (kJ/kWh)" data-en="Hourly (kJ/kWh)">Hourly (kJ/kWh)</div>
-        </div>
-        <span class="badge badge-blue" data-th="สัปดาห์นี้" data-en="This Week">This Week</span>
-      </div>
-      <canvas id="heatRateChart" height="160"></canvas>
-    </div>
-
-    <!-- Energy Breakdown -->
-    <div class="card">
-      <div class="card-title" style="margin-bottom:14px;" data-th="สัดส่วนการผลิตพลังงาน" data-en="Energy Production Breakdown">Energy Production Breakdown</div>
-      <div style="display:flex;align-items:center;gap:16px;">
-        <canvas id="energyDonut" width="130" height="130"></canvas>
-        <div style="flex:1;">
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <div>
-              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-                <span style="display:flex;align-items:center;gap:6px;color:#8b949e;"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1f6feb;"></span>Gas Turbine</span>
-                <span style="font-weight:600;">390 MW <span style="color:#58a6ff;">(55.7%)</span></span>
+      <!-- Heat Rate Gauge -->
+      <div class="card" style="padding:12px 16px;">
+        <div class="card-title" style="margin-bottom:4px;" data-th="อัตราความร้อนเฉลี่ย" data-en="Avg. Heat Rate">อัตราความร้อนเฉลี่ย</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <canvas id="heatGauge" width="110" height="66" style="flex-shrink:0;"></canvas>
+          <div>
+            <div style="font-size:22px;font-weight:700;color:#58a6ff;line-height:1;">7,842</div>
+            <div style="font-size:11px;color:#8b949e;">kJ/kWh</div>
+            <div style="display:flex;gap:10px;margin-top:8px;">
+              <div style="text-align:center;padding:4px 8px;background:#21262d;border-radius:5px;">
+                <div style="font-size:9px;color:#8b949e;" data-th="ต่ำสุด" data-en="Min">Min</div>
+                <div style="font-size:12px;font-weight:700;color:#3fb950;">7,650</div>
               </div>
-              <div class="progress-bar"><div class="progress-fill" style="width:55.7%;background:#1f6feb;"></div></div>
-            </div>
-            <div>
-              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-                <span style="display:flex;align-items:center;gap:6px;color:#8b949e;"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3fb950;"></span>Steam Turbine</span>
-                <span style="font-weight:600;">310 MW <span style="color:#3fb950;">(44.3%)</span></span>
+              <div style="text-align:center;padding:4px 8px;background:#21262d;border-radius:5px;">
+                <div style="font-size:9px;color:#8b949e;" data-th="สูงสุด" data-en="Max">Max</div>
+                <div style="font-size:12px;font-weight:700;color:#f85149;">8,120</div>
               </div>
-              <div class="progress-bar"><div class="progress-fill" style="width:44.3%;background:#3fb950;"></div></div>
             </div>
           </div>
-          <div class="divider"></div>
-          <div style="font-size:11px;color:#8b949e;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-              <span data-th="กำลังผลิตรวม" data-en="Total Output">Total Output</span>
-              <span style="color:#e6edf3;font-weight:600;">700 MW</span>
+        </div>
+      </div>
+
+      <!-- Energy Breakdown -->
+      <div class="card" style="padding:12px 16px;flex:1;">
+        <div class="card-title" style="margin-bottom:10px;" data-th="สัดส่วนการผลิต" data-en="Production Breakdown">สัดส่วนการผลิต</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <canvas id="energyDonut" width="100" height="100" style="flex-shrink:0;"></canvas>
+          <div style="flex:1;">
+            <div style="display:flex;flex-direction:column;gap:8px;">
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+                  <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#1f6feb;"></span>Gas Turbine</span>
+                  <span style="font-weight:600;font-size:11px;">390 MW <span style="color:#58a6ff;">(55.7%)</span></span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:55.7%;background:#1f6feb;"></div></div>
+              </div>
+              <div>
+                <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+                  <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#3fb950;"></span>Steam Turbine</span>
+                  <span style="font-weight:600;font-size:11px;">310 MW <span style="color:#3fb950;">(44.3%)</span></span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:44.3%;background:#3fb950;"></div></div>
+              </div>
             </div>
-            <div style="display:flex;justify-content:space-between;">
-              <span data-th="อัตราการใช้กำลัง" data-en="Utilization Rate">Utilization Rate</span>
-              <span style="color:#3fb950;font-weight:600;">97.5%</span>
+            <div style="margin-top:10px;padding-top:10px;border-top:1px solid #21262d;font-size:11px;color:#8b949e;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                <span data-th="รวม" data-en="Total">รวม</span><span style="color:#e6edf3;font-weight:600;">700 MW</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;">
+                <span data-th="ใช้งาน" data-en="Utilization">ใช้งาน</span><span style="color:#3fb950;font-weight:600;">97.5%</span>
+              </div>
             </div>
           </div>
         </div>
@@ -934,11 +908,11 @@
   const hours = Array.from({length:24}, (_,i) => i+'h');
   const hrData = [7810,7830,7845,7820,7800,7780,7760,7790,7825,7842,7860,7880,7870,7855,7842,7830,7820,7810,7800,7815,7830,7850,7842,7838];
 
-  const hrGradient = hrCtx.createLinearGradient(0,0,0,160);
+  const hrGradient = hrCtx.createLinearGradient(0,0,0,155);
   hrGradient.addColorStop(0,'rgba(88,166,255,0.2)');
   hrGradient.addColorStop(1,'rgba(88,166,255,0)');
 
-  new Chart(hrCtx, {
+  const heatRateChart = new Chart(hrCtx, {
     type: 'line',
     data: {
       labels: hours,
@@ -979,6 +953,43 @@
       }
     }
   });
+
+  // ── Chart Toggle ──
+  function switchChart(type) {
+    const outCanvas  = document.getElementById('outputChart');
+    const hrCanvas   = document.getElementById('heatRateChart');
+    const btnOut     = document.getElementById('btnOutput');
+    const btnHR      = document.getElementById('btnHeatRate');
+    const title      = document.getElementById('chartMainTitle');
+    const sub        = document.getElementById('chartMainSub');
+    const legendOut  = document.getElementById('legendOutput');
+
+    if (type === 'output') {
+      outCanvas.style.display = '';
+      hrCanvas.style.display  = 'none';
+      legendOut.style.display = 'flex';
+      btnOut.style.background = '#30363d'; btnOut.style.color = '#e6edf3';
+      btnHR.style.background  = 'transparent'; btnHR.style.color = '#8b949e';
+      title.setAttribute('data-th','กำลังผลิตจ่ายกริดรายวัน');
+      title.setAttribute('data-en','Daily Output Load to Grid');
+      sub.setAttribute('data-th','แผน vs จริง (MW)');
+      sub.setAttribute('data-en','Plan vs Actual (MW)');
+    } else {
+      outCanvas.style.display = 'none';
+      hrCanvas.style.display  = '';
+      legendOut.style.display = 'none';
+      btnHR.style.background  = '#30363d'; btnHR.style.color = '#e6edf3';
+      btnOut.style.background = 'transparent'; btnOut.style.color = '#8b949e';
+      title.setAttribute('data-th','แนวโน้มอัตราความร้อน');
+      title.setAttribute('data-en','Heat Rate Trend');
+      sub.setAttribute('data-th','รายชั่วโมง (kJ/kWh)');
+      sub.setAttribute('data-en','Hourly (kJ/kWh)');
+      heatRateChart.resize();
+    }
+    // re-apply current language to new title/sub
+    title.textContent = title.getAttribute('data-' + currentLang);
+    sub.textContent   = sub.getAttribute('data-' + currentLang);
+  }
 
   // ── Energy Donut ──
   const donutCtx = document.getElementById('energyDonut').getContext('2d');
