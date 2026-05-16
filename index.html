@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="th" data-lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HKP Power Plant Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Sarabun', 'Inter', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      margin: 0;
+      overflow-x: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      min-height: 100vh;
+      background: #161b22;
+      border-right: 1px solid #21262d;
+      position: fixed;
+      left: 0; top: 0;
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      transition: transform 0.3s ease;
+    }
+    .sidebar-logo {
+      padding: 20px 18px 16px;
+      border-bottom: 1px solid #21262d;
+    }
+    .sidebar-logo .plant-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #58a6ff;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+    .sidebar-logo .sub-name {
+      font-size: 11px;
+      color: #8b949e;
+      margin-top: 2px;
+    }
+    .nav-section-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: #484f58;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      padding: 16px 18px 6px;
+    }
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 18px;
+      margin: 1px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13.5px;
+      color: #8b949e;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+    .nav-item:hover { background: #21262d; color: #e6edf3; }
+    .nav-item.active { background: #1f3a5f; color: #58a6ff; font-weight: 600; }
+    .nav-item .nav-icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-sub {
+      padding-left: 44px;
+      font-size: 12.5px;
+      color: #6e7681;
+    }
+    .nav-sub.active { color: #58a6ff; }
+
+    /* Topbar */
+    .topbar {
+      margin-left: 220px;
+      height: 56px;
+      background: #161b22;
+      border-bottom: 1px solid #21262d;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .page-title { font-size: 15px; font-weight: 600; color: #e6edf3; }
+    .page-subtitle { font-size: 12px; color: #8b949e; margin-top: 1px; }
+
+    /* Language Toggle */
+    .lang-toggle {
+      display: flex;
+      align-items: center;
+      background: #21262d;
+      border-radius: 20px;
+      padding: 3px;
+      gap: 2px;
+    }
+    .lang-btn {
+      padding: 4px 12px;
+      border-radius: 16px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #8b949e;
+      border: none;
+      background: transparent;
+    }
+    .lang-btn.active {
+      background: #58a6ff;
+      color: #0d1117;
+    }
+
+    /* Main content */
+    .main-content {
+      margin-left: 220px;
+      padding: 24px;
+      min-height: calc(100vh - 56px);
+    }
+
+    /* Cards */
+    .card {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 18px;
+    }
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #8b949e;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    /* KPI Cards */
+    .kpi-value {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .kpi-unit { font-size: 13px; color: #8b949e; margin-left: 4px; font-weight: 400; }
+    .kpi-change {
+      font-size: 12px;
+      font-weight: 500;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .kpi-change.up { color: #3fb950; }
+    .kpi-change.down { color: #f85149; }
+    .kpi-change.neutral { color: #8b949e; }
+    .kpi-label { font-size: 12px; color: #8b949e; margin-top: 4px; }
+
+    /* Status badge */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-green { background: rgba(63,185,80,0.15); color: #3fb950; }
+    .badge-yellow { background: rgba(210,153,34,0.15); color: #d2991f; }
+    .badge-red { background: rgba(248,81,73,0.15); color: #f85149; }
+    .badge-blue { background: rgba(88,166,255,0.15); color: #58a6ff; }
+    .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .dot-green { background: #3fb950; }
+    .dot-yellow { background: #d2991f; }
+    .dot-red { background: #f85149; }
+
+    /* Generator row */
+    .gen-row {
+      display: flex;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #21262d;
+      gap: 12px;
+    }
+    .gen-row:last-child { border-bottom: none; }
+
+    /* Progress bar */
+    .progress-bar {
+      height: 5px;
+      background: #21262d;
+      border-radius: 3px;
+      overflow: hidden;
+      flex: 1;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.8s ease;
+    }
+
+    /* Gauge */
+    .gauge-wrap { position: relative; display: inline-block; }
+    .gauge-value {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      text-align: center;
+      font-weight: 700;
+      font-size: 18px;
+      color: #e6edf3;
+      white-space: nowrap;
+    }
+    .gauge-unit { font-size: 11px; color: #8b949e; font-weight: 400; }
+
+    /* Plant schematic */
+    .plant-schematic {
+      background: linear-gradient(135deg, #0d2137 0%, #0d1117 100%);
+      border: 1px solid #1f3a5f;
+      border-radius: 10px;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    .schematic-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 30% 50%, rgba(88,166,255,0.04) 0%, transparent 60%),
+                  radial-gradient(ellipse at 70% 50%, rgba(63,185,80,0.03) 0%, transparent 60%);
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0d1117; }
+    ::-webkit-scrollbar-thumb { background: #21262d; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #30363d; }
+
+    /* Animate in */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.4s ease forwards; }
+    .fade-up:nth-child(1) { animation-delay: 0.05s; }
+    .fade-up:nth-child(2) { animation-delay: 0.1s; }
+    .fade-up:nth-child(3) { animation-delay: 0.15s; }
+    .fade-up:nth-child(4) { animation-delay: 0.2s; }
+
+    .divider { height: 1px; background: #21262d; margin: 16px 0; }
+
+    /* Time filter */
+    .time-filter {
+      display: flex;
+      gap: 4px;
+      background: #21262d;
+      border-radius: 6px;
+      padding: 3px;
+    }
+    .time-btn {
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      color: #8b949e;
+      border: none;
+      background: transparent;
+      transition: all 0.15s;
+    }
+    .time-btn.active { background: #30363d; color: #e6edf3; }
+
+    .refresh-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 6px;
+      font-size: 12px;
+      color: #8b949e;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .refresh-btn:hover { background: #30363d; color: #e6edf3; }
+
+    .last-update { font-size: 11px; color: #484f58; }
+  </style>
+</head>
+<body>
+
+<!-- ===================== SIDEBAR ===================== -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <!-- Power icon -->
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1f6feb,#58a6ff);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <div>
+        <div class="plant-name" data-th="โรงไฟฟ้า HKP" data-en="HKP Power Plant">โรงไฟฟ้า HKP</div>
+        <div class="sub-name" data-th="ระบบติดตามประสิทธิภาพโรงไฟฟ้า" data-en="Plant Performance Monitoring">ระบบติดตามประสิทธิภาพโรงไฟฟ้า</div>
+      </div>
+    </div>
+  </div>
+
+  <nav style="flex:1;padding:8px 0;overflow-y:auto;">
+    <div class="nav-section-label" data-th="ภาพรวม" data-en="OVERVIEW">ภาพรวม</div>
+
+    <a class="nav-item active" href="#">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+      </svg>
+      <span data-th="ภาพรวมระบบ" data-en="Overview">ภาพรวมระบบ</span>
+    </a>
+
+    <div class="nav-section-label" data-th="เครื่องจักร" data-en="EQUIPMENT">เครื่องจักร</div>
+
+    <a class="nav-item" href="#">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+        <path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/>
+      </svg>
+      <span data-th="Gas Turbine" data-en="Gas Turbine">Gas Turbine</span>
+    </a>
+    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;" data-active-sub><span data-th="บล็อก 1" data-en="Block 1">บล็อก 1</span></div>
+    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 2" data-en="Block 2">บล็อก 2</span></div>
+
+    <a class="nav-item" href="#" style="margin-top:2px;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+      <span data-th="Steam Turbine" data-en="Steam Turbine">Steam Turbine</span>
+    </a>
+    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 1" data-en="Block 1">บล็อก 1</span></div>
+    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 2" data-en="Block 2">บล็อก 2</span></div>
+
+    <a class="nav-item" href="#" style="margin-top:2px;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+      </svg>
+      <span data-th="HRSG" data-en="HRSG">HRSG</span>
+    </a>
+    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 1" data-en="Block 1">บล็อก 1</span></div>
+    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 2" data-en="Block 2">บล็อก 2</span></div>
+
+    <div class="nav-section-label" style="margin-top:8px;" data-th="รายงาน" data-en="REPORTS">รายงาน</div>
+
+    <a class="nav-item" href="#">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+      </svg>
+      <span data-th="รายงานประจำวัน" data-en="Daily Report">รายงานประจำวัน</span>
+    </a>
+
+    <a class="nav-item" href="#">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span data-th="งานซ่อมบำรุง" data-en="Maintenance">งานซ่อมบำรุง</span>
+    </a>
+  </nav>
+
+  <div style="padding:12px 18px;border-top:1px solid #21262d;">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div style="width:28px;height:28px;background:#1f3a5f;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#58a6ff;">A</div>
+      <div>
+        <div style="font-size:12px;font-weight:600;">Admin User</div>
+        <div style="font-size:10px;color:#8b949e;" data-th="วิศวกรผู้ควบคุม" data-en="Control Engineer">วิศวกรผู้ควบคุม</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TOPBAR ===================== -->
+<div class="topbar">
+  <div>
+    <div class="page-title" data-th="ภาพรวมระบบโรงไฟฟ้า" data-en="Power Plant System Overview">ภาพรวมระบบโรงไฟฟ้า</div>
+    <div class="page-subtitle" id="lastUpdate">อัปเดตล่าสุด: 16 พ.ค. 2569 | 08:45</div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="time-filter">
+      <button class="time-btn" onclick="setTimeFilter(this,'today')" data-th="วันนี้" data-en="Today">วันนี้</button>
+      <button class="time-btn active" onclick="setTimeFilter(this,'week')" data-th="สัปดาห์" data-en="Week">สัปดาห์</button>
+      <button class="time-btn" onclick="setTimeFilter(this,'month')" data-th="เดือน" data-en="Month">เดือน</button>
+      <button class="time-btn" onclick="setTimeFilter(this,'year')" data-th="ปี" data-en="Year">ปี</button>
+    </div>
+
+    <button class="refresh-btn" onclick="refreshData()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      <span data-th="รีเฟรช" data-en="Refresh">รีเฟรช</span>
+    </button>
+
+    <div class="lang-toggle">
+      <button class="lang-btn" onclick="setLang('th')" id="btn-th">TH</button>
+      <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MAIN CONTENT ===================== -->
+<div class="main-content">
+
+  <!-- Plant schematic banner -->
+  <div class="plant-schematic mb-6 fade-up" style="margin-bottom:20px;">
+    <div class="schematic-bg"></div>
+    <div style="position:relative;z-index:1;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div style="font-size:11px;color:#58a6ff;font-weight:600;letter-spacing:1px;text-transform:uppercase;" data-th="โรงไฟฟ้าพลังความร้อนร่วม" data-en="Combined Cycle Power Plant">โรงไฟฟ้าพลังความร้อนร่วม</div>
+          <div style="font-size:18px;font-weight:700;margin-top:2px;" data-th="สถานะโรงไฟฟ้า HKP" data-en="HKP Plant Status">สถานะโรงไฟฟ้า HKP</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="badge badge-green"><span class="dot dot-green"></span><span data-th="ระบบปกติ" data-en="System Normal">ระบบปกติ</span></span>
+          <span style="font-size:11px;color:#8b949e;" data-th="กำลังการผลิต:" data-en="Capacity:">กำลังการผลิต:</span>
+          <span style="font-size:14px;font-weight:700;color:#58a6ff;">700 MW</span>
+        </div>
+      </div>
+
+      <!-- Single Shaft 2-Block label -->
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="font-size:10px;color:#484f58;font-weight:600;letter-spacing:1px;text-transform:uppercase;" data-th="โครงแบบ Single Shaft · 2 บล็อก" data-en="Single Shaft Configuration · 2 Blocks">Single Shaft Configuration · 2 Blocks</span>
+        <div style="flex:1;height:1px;background:#21262d;"></div>
+        <span class="badge badge-blue" style="font-size:10px;padding:2px 8px;">CCPP</span>
+      </div>
+
+      <!-- Plant Flow Diagram -->
+      <div style="display:flex;align-items:center;justify-content:center;gap:0;padding:4px 0;overflow-x:auto;">
+
+        <!-- PTT Fuel Gas Metering -->
+        <div style="text-align:center;min-width:90px;">
+          <div style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.25);border-radius:10px;padding:8px 10px;position:relative;">
+            <div style="width:28px;height:28px;background:rgba(88,166,255,0.15);border-radius:6px;display:flex;align-items:center;justify-content:center;margin:0 auto 4px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+              </svg>
+            </div>
+            <div style="font-size:9.5px;font-weight:700;color:#58a6ff;line-height:1.3;">PTT Fuel Gas</div>
+            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;">Metering Station</div>
+          </div>
+          <div style="font-size:9px;color:#8b949e;margin-top:5px;" data-th="สถานีวัดก๊าซ" data-en="Fuel Supply">สถานีวัดก๊าซ</div>
+        </div>
+
+        <!-- Arrow -->
+        <div style="display:flex;align-items:center;padding:0 6px;">
+          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(88,166,255,0.4),rgba(88,166,255,0.8));position:relative;">
+            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(88,166,255,0.8);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
+          </div>
+        </div>
+
+        <!-- Gas Turbine -->
+        <div style="text-align:center;min-width:105px;">
+          <div style="background:rgba(31,111,235,0.12);border:1px solid rgba(31,111,235,0.4);border-radius:10px;padding:8px 12px;position:relative;">
+            <div style="font-size:10px;font-weight:700;color:#58a6ff;">Gas Turbine</div>
+            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">Block 1 · Block 2</div>
+            <div style="font-size:15px;font-weight:700;color:#e6edf3;margin-top:4px;">390 <span style="font-size:9px;color:#8b949e;">MW</span></div>
+            <div style="position:absolute;top:4px;right:6px;"><span class="dot dot-green" style="width:5px;height:5px;display:inline-block;"></span></div>
+          </div>
+        </div>
+
+        <!-- Arrow -->
+        <div style="display:flex;align-items:center;padding:0 6px;">
+          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(210,153,34,0.5),rgba(210,153,34,0.9));position:relative;">
+            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(210,153,34,0.9);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
+          </div>
+        </div>
+
+        <!-- HRSG -->
+        <div style="text-align:center;min-width:95px;">
+          <div style="background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.3);border-radius:10px;padding:8px 12px;">
+            <div style="font-size:10px;font-weight:700;color:#d2991f;">HRSG</div>
+            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">Block 1 · Block 2</div>
+            <div style="font-size:15px;font-weight:700;color:#e6edf3;margin-top:4px;">98.2 <span style="font-size:9px;color:#8b949e;">%eff</span></div>
+          </div>
+        </div>
+
+        <!-- Arrow -->
+        <div style="display:flex;align-items:center;padding:0 6px;">
+          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(210,153,34,0.5),rgba(63,185,80,0.7));position:relative;">
+            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(63,185,80,0.7);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
+          </div>
+        </div>
+
+        <!-- Steam Turbine -->
+        <div style="text-align:center;min-width:105px;">
+          <div style="background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.3);border-radius:10px;padding:8px 12px;position:relative;">
+            <div style="font-size:10px;font-weight:700;color:#3fb950;">Steam Turbine</div>
+            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">Block 1 · Block 2</div>
+            <div style="font-size:15px;font-weight:700;color:#e6edf3;margin-top:4px;">310 <span style="font-size:9px;color:#8b949e;">MW</span></div>
+            <div style="position:absolute;top:4px;right:6px;"><span class="dot dot-green" style="width:5px;height:5px;display:inline-block;"></span></div>
+          </div>
+        </div>
+
+        <!-- Arrow -->
+        <div style="display:flex;align-items:center;padding:0 6px;">
+          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(63,185,80,0.5),rgba(63,185,80,0.9));position:relative;">
+            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(63,185,80,0.9);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
+          </div>
+        </div>
+
+        <!-- Generator -->
+        <div style="text-align:center;min-width:95px;">
+          <div style="background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.4);border-radius:10px;padding:8px 12px;">
+            <div style="font-size:10px;font-weight:700;color:#3fb950;" data-th="เครื่องกำเนิดไฟฟ้า" data-en="Generator">Generator</div>
+            <div style="font-size:8.5px;color:#6e7681;margin-top:1px;" data-th="บล็อก 1 · บล็อก 2" data-en="Block 1 · Block 2">Block 1 · Block 2</div>
+            <div style="font-size:15px;font-weight:700;color:#e6edf3;margin-top:4px;">700 <span style="font-size:9px;color:#8b949e;">MW</span></div>
+          </div>
+        </div>
+
+        <!-- Arrow -->
+        <div style="display:flex;align-items:center;padding:0 6px;">
+          <div style="width:32px;height:2px;background:linear-gradient(90deg,rgba(63,185,80,0.5),rgba(240,246,252,0.6));position:relative;">
+            <div style="position:absolute;right:-5px;top:-4px;border-left:7px solid rgba(240,246,252,0.6);border-top:4px solid transparent;border-bottom:4px solid transparent;"></div>
+          </div>
+        </div>
+
+        <!-- Grid -->
+        <div style="text-align:center;min-width:80px;">
+          <div style="width:44px;height:44px;background:rgba(240,246,252,0.06);border:1px solid rgba(240,246,252,0.2);border-radius:10px;display:flex;align-items:center;justify-content:center;margin:0 auto;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f0f6fc" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+              <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+            </svg>
+          </div>
+          <div style="font-size:9px;color:#8b949e;margin-top:5px;" data-th="สายส่งไฟฟ้า" data-en="Grid">สายส่งไฟฟ้า</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;">
+
+    <!-- Heat Rate -->
+    <div class="card fade-up">
+      <div class="card-title" data-th="อัตราความร้อน" data-en="Heat Rate">Heat Rate</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:#58a6ff;" id="kpi-heat-rate">7,842</span>
+        <span class="kpi-unit">kJ/kWh</span>
+      </div>
+      <div class="kpi-change down">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+        <span>-1.2% <span style="color:#8b949e;font-weight:400;" data-th="จากค่าเป้าหมาย" data-en="vs target">vs target</span></span>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:11px;color:#8b949e;" data-th="เป้าหมาย:" data-en="Target:">Target: <span style="color:#e6edf3;font-weight:600;">7,750 kJ/kWh</span></div>
+    </div>
+
+    <!-- Output Load to Grid -->
+    <div class="card fade-up">
+      <div class="card-title" data-th="กำลังผลิตจ่ายกริด (เฉลี่ย)" data-en="Avg. Output Load to Grid">Avg. Output Load to Grid</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:#3fb950;" id="kpi-output">682.4</span>
+        <span class="kpi-unit">MW</span>
+      </div>
+      <div class="kpi-change up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        <span>+2.4% <span style="color:#8b949e;font-weight:400;" data-th="จากสัปดาห์ที่แล้ว" data-en="vs last week">vs last week</span></span>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:11px;color:#8b949e;">
+        <span data-th="กำลังผลิตติดตั้ง:" data-en="Installed Capacity:">Installed Capacity:</span>
+        <span style="color:#e6edf3;font-weight:600;"> 700 MW</span>
+        <span style="color:#3fb950;margin-left:6px;">(97.5%)</span>
+      </div>
+    </div>
+
+    <!-- Energy Generation -->
+    <div class="card fade-up">
+      <div class="card-title" data-th="การผลิตพลังงาน (สัปดาห์นี้)" data-en="Energy Generation (This Week)">Energy Generation (This Week)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:#d2991f;" id="kpi-energy">115.2</span>
+        <span class="kpi-unit">GWh</span>
+      </div>
+      <div class="kpi-change up">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        <span>+3.1% <span style="color:#8b949e;font-weight:400;" data-th="จากสัปดาห์ที่แล้ว" data-en="vs last week">vs last week</span></span>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:11px;color:#8b949e;"><span data-th="เป้าหมายรายเดือน:" data-en="Monthly Target:">Monthly Target:</span> <span style="color:#e6edf3;font-weight:600;">480 GWh</span></div>
+    </div>
+
+    <!-- Fuel Consumption -->
+    <div class="card fade-up">
+      <div class="card-title" data-th="การใช้เชื้อเพลิง (สัปดาห์นี้)" data-en="Fuel Consumption (This Week)">Fuel Consumption (This Week)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:#a371f7;" id="kpi-fuel">24.8</span>
+        <span class="kpi-unit">MMSCFD</span>
+      </div>
+      <div class="kpi-change neutral">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>±0.3% <span style="color:#8b949e;font-weight:400;" data-th="จากแผน" data-en="vs plan">vs plan</span></span>
+      </div>
+      <div class="divider"></div>
+      <div style="font-size:11px;color:#8b949e;"><span data-th="แผนสัปดาห์นี้:" data-en="Weekly Plan:">Weekly Plan:</span> <span style="color:#e6edf3;font-weight:600;">24.9 MMSCFD</span></div>
+    </div>
+
+  </div>
+
+  <!-- Charts Row -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:20px;">
+
+    <!-- Output Load Chart -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div class="card-title" style="margin-bottom:2px;" data-th="กำลังผลิตจ่ายกริดรายวัน" data-en="Daily Output Load to Grid">Daily Output Load to Grid</div>
+          <div style="font-size:11px;color:#8b949e;" data-th="แผน vs จริง (MW)" data-en="Plan vs Actual (MW)">Plan vs Actual (MW)</div>
+        </div>
+        <div style="display:flex;gap:16px;font-size:11px;">
+          <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:10px;height:3px;background:#58a6ff;border-radius:2px;"></span><span data-th="จริง" data-en="Actual">Actual</span></span>
+          <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:10px;height:3px;background:#484f58;border-radius:2px;border-top:1px dashed #6e7681;"></span><span data-th="แผน" data-en="Plan">Plan</span></span>
+        </div>
+      </div>
+      <canvas id="outputChart" height="180"></canvas>
+    </div>
+
+    <!-- Heat Rate Gauge -->
+    <div class="card" style="display:flex;flex-direction:column;align-items:center;">
+      <div class="card-title" style="align-self:flex-start;" data-th="อัตราความร้อนเฉลี่ย" data-en="Avg. Heat Rate">Avg. Heat Rate</div>
+      <canvas id="heatGauge" width="200" height="120" style="margin:8px auto 0;"></canvas>
+      <div style="text-align:center;margin-top:-10px;">
+        <div style="font-size:26px;font-weight:700;color:#58a6ff;">7,842</div>
+        <div style="font-size:11px;color:#8b949e;">kJ/kWh</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;margin-top:14px;">
+        <div style="text-align:center;padding:8px;background:#21262d;border-radius:6px;">
+          <div style="font-size:10px;color:#8b949e;" data-th="ต่ำสุด" data-en="Min">Min</div>
+          <div style="font-size:14px;font-weight:700;color:#3fb950;">7,650</div>
+        </div>
+        <div style="text-align:center;padding:8px;background:#21262d;border-radius:6px;">
+          <div style="font-size:10px;color:#8b949e;" data-th="สูงสุด" data-en="Max">Max</div>
+          <div style="font-size:14px;font-weight:700;color:#f85149;">8,120</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Second charts row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+
+    <!-- Heat Rate Trend -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div class="card-title" style="margin-bottom:2px;" data-th="แนวโน้มอัตราความร้อน" data-en="Heat Rate Trend">Heat Rate Trend</div>
+          <div style="font-size:11px;color:#8b949e;" data-th="รายชั่วโมง (kJ/kWh)" data-en="Hourly (kJ/kWh)">Hourly (kJ/kWh)</div>
+        </div>
+        <span class="badge badge-blue" data-th="สัปดาห์นี้" data-en="This Week">This Week</span>
+      </div>
+      <canvas id="heatRateChart" height="160"></canvas>
+    </div>
+
+    <!-- Energy Breakdown -->
+    <div class="card">
+      <div class="card-title" style="margin-bottom:14px;" data-th="สัดส่วนการผลิตพลังงาน" data-en="Energy Production Breakdown">Energy Production Breakdown</div>
+      <div style="display:flex;align-items:center;gap:16px;">
+        <canvas id="energyDonut" width="130" height="130"></canvas>
+        <div style="flex:1;">
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="display:flex;align-items:center;gap:6px;color:#8b949e;"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#1f6feb;"></span>Gas Turbine</span>
+                <span style="font-weight:600;">390 MW <span style="color:#58a6ff;">(55.7%)</span></span>
+              </div>
+              <div class="progress-bar"><div class="progress-fill" style="width:55.7%;background:#1f6feb;"></div></div>
+            </div>
+            <div>
+              <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                <span style="display:flex;align-items:center;gap:6px;color:#8b949e;"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:#3fb950;"></span>Steam Turbine</span>
+                <span style="font-weight:600;">310 MW <span style="color:#3fb950;">(44.3%)</span></span>
+              </div>
+              <div class="progress-bar"><div class="progress-fill" style="width:44.3%;background:#3fb950;"></div></div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <div style="font-size:11px;color:#8b949e;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span data-th="กำลังผลิตรวม" data-en="Total Output">Total Output</span>
+              <span style="color:#e6edf3;font-weight:600;">700 MW</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span data-th="อัตราการใช้กำลัง" data-en="Utilization Rate">Utilization Rate</span>
+              <span style="color:#3fb950;font-weight:600;">97.5%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generator Status Table -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:0;" data-th="สถานะเครื่องกำเนิดไฟฟ้า" data-en="Generator Status">Generator Status</div>
+      <span style="font-size:11px;color:#8b949e;" data-th="อัปเดต:" data-en="Updated:">Updated: <span style="color:#e6edf3;">08:45</span></span>
+    </div>
+
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;">
+        <thead>
+          <tr style="border-bottom:1px solid #21262d;">
+            <th style="text-align:left;padding:8px 12px;color:#8b949e;font-weight:500;" data-th="เครื่อง" data-en="Unit">Unit</th>
+            <th style="text-align:left;padding:8px 12px;color:#8b949e;font-weight:500;" data-th="ประเภท" data-en="Type">Type</th>
+            <th style="text-align:left;padding:8px 12px;color:#8b949e;font-weight:500;" data-th="สถานะ" data-en="Status">Status</th>
+            <th style="text-align:right;padding:8px 12px;color:#8b949e;font-weight:500;" data-th="กำลังผลิต" data-en="Output">Output (MW)</th>
+            <th style="text-align:right;padding:8px 12px;color:#8b949e;font-weight:500;" data-th="อัตราความร้อน" data-en="Heat Rate">Heat Rate (kJ/kWh)</th>
+            <th style="text-align:right;padding:8px 12px;color:#8b949e;font-weight:500;" data-th="% โหลด" data-en="% Load">% Load</th>
+            <th style="text-align:left;padding:8px 12px;color:#8b949e;font-weight:500;" data-th="ชั่วโมงเดิน" data-en="Run Hours">Run Hours</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Block 1 group header -->
+          <tr style="background:#0d1117;">
+            <td colspan="7" style="padding:6px 12px;">
+              <span style="font-size:10px;font-weight:700;color:#484f58;letter-spacing:1px;text-transform:uppercase;" data-th="บล็อก 1 · Single Shaft" data-en="Block 1 · Single Shaft">Block 1 · Single Shaft</span>
+            </td>
+          </tr>
+          <tr style="border-bottom:1px solid #161b22;transition:background 0.1s;" onmouseover="this.style.background='#21262d'" onmouseout="this.style.background=''">
+            <td style="padding:10px 12px;font-weight:600;">
+              <span style="color:#8b949e;font-weight:400;font-size:11px;margin-right:4px;">B1</span>GT
+            </td>
+            <td style="padding:10px 12px;color:#8b949e;">Gas Turbine</td>
+            <td style="padding:10px 12px;"><span class="badge badge-green"><span class="dot dot-green"></span><span data-th="เดินเครื่อง" data-en="Running">เดินเครื่อง</span></span></td>
+            <td style="padding:10px 12px;text-align:right;font-weight:600;color:#e6edf3;">195.2</td>
+            <td style="padding:10px 12px;text-align:right;color:#58a6ff;font-weight:600;">7,820</td>
+            <td style="padding:10px 12px;text-align:right;">
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+                <span style="color:#3fb950;font-weight:600;">93.9%</span>
+                <div class="progress-bar" style="width:60px;"><div class="progress-fill" style="width:93.9%;background:#3fb950;"></div></div>
+              </div>
+            </td>
+            <td style="padding:10px 12px;color:#8b949e;">2,184 h</td>
+          </tr>
+          <tr style="border-bottom:1px solid #161b22;transition:background 0.1s;" onmouseover="this.style.background='#21262d'" onmouseout="this.style.background=''">
+            <td style="padding:10px 12px;font-weight:600;">
+              <span style="color:#8b949e;font-weight:400;font-size:11px;margin-right:4px;">B1</span>ST
+            </td>
+            <td style="padding:10px 12px;color:#8b949e;">Steam Turbine</td>
+            <td style="padding:10px 12px;"><span class="badge badge-green"><span class="dot dot-green"></span><span data-th="เดินเครื่อง" data-en="Running">เดินเครื่อง</span></span></td>
+            <td style="padding:10px 12px;text-align:right;font-weight:600;color:#e6edf3;">155.2</td>
+            <td style="padding:10px 12px;text-align:right;color:#8b949e;">—</td>
+            <td style="padding:10px 12px;text-align:right;">
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+                <span style="color:#3fb950;font-weight:600;">97.8%</span>
+                <div class="progress-bar" style="width:60px;"><div class="progress-fill" style="width:97.8%;background:#3fb950;"></div></div>
+              </div>
+            </td>
+            <td style="padding:10px 12px;color:#8b949e;">2,184 h</td>
+          </tr>
+
+          <!-- Block 2 group header -->
+          <tr style="background:#0d1117;">
+            <td colspan="7" style="padding:6px 12px;">
+              <span style="font-size:10px;font-weight:700;color:#484f58;letter-spacing:1px;text-transform:uppercase;" data-th="บล็อก 2 · Single Shaft" data-en="Block 2 · Single Shaft">Block 2 · Single Shaft</span>
+            </td>
+          </tr>
+          <tr style="border-bottom:1px solid #161b22;transition:background 0.1s;" onmouseover="this.style.background='#21262d'" onmouseout="this.style.background=''">
+            <td style="padding:10px 12px;font-weight:600;">
+              <span style="color:#8b949e;font-weight:400;font-size:11px;margin-right:4px;">B2</span>GT
+            </td>
+            <td style="padding:10px 12px;color:#8b949e;">Gas Turbine</td>
+            <td style="padding:10px 12px;"><span class="badge badge-yellow"><span class="dot dot-yellow"></span><span data-th="ลดโหลด" data-en="Derate">ลดโหลด</span></span></td>
+            <td style="padding:10px 12px;text-align:right;font-weight:600;color:#e6edf3;">194.8</td>
+            <td style="padding:10px 12px;text-align:right;color:#d2991f;font-weight:600;">7,990</td>
+            <td style="padding:10px 12px;text-align:right;">
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+                <span style="color:#d2991f;font-weight:600;">93.7%</span>
+                <div class="progress-bar" style="width:60px;"><div class="progress-fill" style="width:93.7%;background:#d2991f;"></div></div>
+              </div>
+            </td>
+            <td style="padding:10px 12px;color:#8b949e;">3,421 h</td>
+          </tr>
+          <tr style="transition:background 0.1s;" onmouseover="this.style.background='#21262d'" onmouseout="this.style.background=''">
+            <td style="padding:10px 12px;font-weight:600;">
+              <span style="color:#8b949e;font-weight:400;font-size:11px;margin-right:4px;">B2</span>ST
+            </td>
+            <td style="padding:10px 12px;color:#8b949e;">Steam Turbine</td>
+            <td style="padding:10px 12px;"><span class="badge badge-green"><span class="dot dot-green"></span><span data-th="เดินเครื่อง" data-en="Running">เดินเครื่อง</span></span></td>
+            <td style="padding:10px 12px;text-align:right;font-weight:600;color:#e6edf3;">155.2</td>
+            <td style="padding:10px 12px;text-align:right;color:#8b949e;">—</td>
+            <td style="padding:10px 12px;text-align:right;">
+              <div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+                <span style="color:#3fb950;font-weight:600;">98.4%</span>
+                <div class="progress-bar" style="width:60px;"><div class="progress-fill" style="width:98.4%;background:#3fb950;"></div></div>
+              </div>
+            </td>
+            <td style="padding:10px 12px;color:#8b949e;">3,421 h</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div style="margin-top:20px;text-align:center;font-size:11px;color:#484f58;padding:12px 0;">
+    HKP Power Plant Dashboard · <span data-th="ข้อมูลจำลอง (Mock Data)" data-en="Simulated Data (Mock)">Simulated Data (Mock)</span> · v1.0.0
+  </div>
+
+</div>
+
+<!-- ===================== SCRIPTS ===================== -->
+<script>
+  // ── Language ──
+  let currentLang = 'th';
+
+  function setLang(lang) {
+    currentLang = lang;
+    document.getElementById('btn-th').classList.toggle('active', lang === 'th');
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+
+    document.querySelectorAll('[data-th][data-en]').forEach(el => {
+      el.textContent = el.getAttribute('data-' + lang);
+    });
+
+    // Update subtitle
+    const sub = document.getElementById('lastUpdate');
+    if (lang === 'en') {
+      sub.textContent = 'Last updated: 16 May 2026 | 08:45';
+    } else {
+      sub.textContent = 'อัปเดตล่าสุด: 16 พ.ค. 2569 | 08:45';
+    }
+  }
+
+  // ── Time filter ──
+  function setTimeFilter(btn, period) {
+    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // In real app: refetch data for period
+    updateChartsForPeriod(period);
+  }
+
+  // ── Refresh ──
+  function refreshData() {
+    // Animate numbers slightly
+    animateNumber('kpi-heat-rate', 7842, 7842 + Math.floor(Math.random()*40 - 20));
+    animateNumber('kpi-output', 682.4, parseFloat((682 + Math.random()*5 - 2).toFixed(1)));
+  }
+
+  function animateNumber(id, from, to) {
+    const el = document.getElementById(id);
+    const step = (to - from) / 20;
+    let v = from;
+    const t = setInterval(() => {
+      v += step;
+      if ((step > 0 && v >= to) || (step < 0 && v <= to)) { el.textContent = typeof to === 'number' && !Number.isInteger(to) ? to.toFixed(1) : to; clearInterval(t); return; }
+      el.textContent = typeof from === 'number' && !Number.isInteger(from) ? v.toFixed(1) : Math.round(v).toLocaleString();
+    }, 30);
+  }
+
+  // ── Chart defaults ──
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.font.family = "'Sarabun', 'Inter', sans-serif";
+  Chart.defaults.font.size = 11;
+
+  // ── Output Load Chart ──
+  const outputCtx = document.getElementById('outputChart').getContext('2d');
+  const days = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const actualOutput = [675, 688, 671, 695, 682, 670, 683];
+  const planOutput   = [680, 680, 680, 680, 680, 680, 680];
+
+  const outputChart = new Chart(outputCtx, {
+    type: 'bar',
+    data: {
+      labels: days,
+      datasets: [
+        {
+          label: 'Actual',
+          data: actualOutput,
+          backgroundColor: 'rgba(88,166,255,0.75)',
+          borderColor: '#58a6ff',
+          borderWidth: 1,
+          borderRadius: 4,
+          order: 2
+        },
+        {
+          label: 'Plan',
+          data: planOutput,
+          type: 'line',
+          borderColor: '#484f58',
+          borderDash: [5,3],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+          order: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#21262d',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#e6edf3',
+          bodyColor: '#8b949e',
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y} MW`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: '#21262d' }, border: { color: '#30363d' } },
+        y: {
+          grid: { color: '#21262d' },
+          border: { color: '#30363d' },
+          min: 640,
+          max: 720,
+          ticks: { callback: v => v + ' MW' }
+        }
+      }
+    }
+  });
+
+  // ── Heat Rate Trend ──
+  const hrCtx = document.getElementById('heatRateChart').getContext('2d');
+  const hours = Array.from({length:24}, (_,i) => i+'h');
+  const hrData = [7810,7830,7845,7820,7800,7780,7760,7790,7825,7842,7860,7880,7870,7855,7842,7830,7820,7810,7800,7815,7830,7850,7842,7838];
+
+  const hrGradient = hrCtx.createLinearGradient(0,0,0,160);
+  hrGradient.addColorStop(0,'rgba(88,166,255,0.2)');
+  hrGradient.addColorStop(1,'rgba(88,166,255,0)');
+
+  new Chart(hrCtx, {
+    type: 'line',
+    data: {
+      labels: hours,
+      datasets: [{
+        data: hrData,
+        borderColor: '#58a6ff',
+        borderWidth: 1.8,
+        pointRadius: 0,
+        pointHoverRadius: 4,
+        fill: true,
+        backgroundColor: hrGradient,
+        tension: 0.4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#21262d',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#e6edf3',
+          bodyColor: '#58a6ff',
+          callbacks: { label: ctx => ` ${ctx.parsed.y.toLocaleString()} kJ/kWh` }
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, border: { color: '#30363d' }, ticks: { maxTicksLimit: 8 } },
+        y: {
+          grid: { color: '#21262d' },
+          border: { color: '#30363d' },
+          min: 7700,
+          max: 7950,
+          ticks: { callback: v => v.toLocaleString() }
+        }
+      }
+    }
+  });
+
+  // ── Energy Donut ──
+  const donutCtx = document.getElementById('energyDonut').getContext('2d');
+  new Chart(donutCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Gas Turbine','Steam Turbine'],
+      datasets: [{
+        data: [390, 310],
+        backgroundColor: ['#1f6feb','#3fb950'],
+        borderColor: ['#161b22','#161b22'],
+        borderWidth: 3,
+        hoverOffset: 4
+      }]
+    },
+    options: {
+      cutout: '68%',
+      responsive: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#21262d',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#e6edf3',
+          bodyColor: '#8b949e',
+          callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed} MW` }
+        }
+      }
+    }
+  });
+
+  // ── Heat Rate Gauge (Arc) ──
+  const gaugeCtx = document.getElementById('heatGauge').getContext('2d');
+  const minVal = 7500, maxVal = 8500, curVal = 7842;
+  const pct = (curVal - minVal) / (maxVal - minVal); // 0..1
+
+  new Chart(gaugeCtx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [pct, 1 - pct, 0.00001],
+        backgroundColor: ['#58a6ff', '#21262d', 'transparent'],
+        borderColor: ['transparent','transparent','transparent'],
+        borderWidth: 0,
+        circumference: 180,
+        rotation: 270
+      }]
+    },
+    options: {
+      cutout: '72%',
+      responsive: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } }
+    }
+  });
+
+  // ── Animate bars on load ──
+  setTimeout(() => {
+    document.querySelectorAll('.progress-fill').forEach(el => {
+      const w = el.style.width;
+      el.style.width = '0';
+      setTimeout(() => { el.style.width = w; }, 100);
+    });
+  }, 300);
+
+  function updateChartsForPeriod(period) {
+    // Placeholder – in real app, fetch new data
+    outputChart.update();
+  }
+
+  // Init language
+  setLang('th');
+</script>
+
+</body>
+</html>
