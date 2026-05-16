@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>HKP Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Sarabun', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      padding-bottom: 70px;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* ── Top header ── */
+    .header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #161b22;
+      border-bottom: 1px solid #21262d;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-logo {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg,#1f6feb,#58a6ff);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .header-title { font-size: 14px; font-weight: 700; color: #e6edf3; }
+    .header-sub { font-size: 10px; color: #8b949e; margin-top: 1px; }
+
+    .lang-toggle {
+      display: flex; background: #21262d; border-radius: 16px; padding: 3px; gap: 2px;
+    }
+    .lang-btn {
+      padding: 3px 10px; border-radius: 13px; font-size: 11px; font-weight: 700;
+      border: none; background: transparent; color: #8b949e; cursor: pointer;
+    }
+    .lang-btn.active { background: #58a6ff; color: #0d1117; }
+
+    /* ── Page content ── */
+    .page { display: none; padding: 14px 14px 0; }
+    .page.active { display: block; }
+
+    /* ── Status banner ── */
+    .status-banner {
+      background: linear-gradient(135deg,#0d2137,#0d1117);
+      border: 1px solid #1f3a5f;
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .status-left .plant-label { font-size: 10px; color: #58a6ff; font-weight: 600; letter-spacing: 0.5px; }
+    .status-left .plant-name { font-size: 16px; font-weight: 700; margin-top: 2px; }
+    .status-right { text-align: right; }
+    .status-mw { font-size: 22px; font-weight: 700; color: #58a6ff; line-height: 1; }
+    .status-mw-label { font-size: 10px; color: #8b949e; margin-top: 2px; }
+
+    /* ── Badge ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+    }
+    .badge-green { background: rgba(63,185,80,0.15); color: #3fb950; }
+    .badge-yellow { background: rgba(210,153,34,0.15); color: #d2991f; }
+    .badge-red { background: rgba(248,81,73,0.15); color: #f85149; }
+    .badge-blue { background: rgba(88,166,255,0.15); color: #58a6ff; }
+    .dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+    .dot-green { background: #3fb950; }
+    .dot-yellow { background: #d2991f; }
+    .dot-red { background: #f85149; }
+
+    /* ── Flow diagram (mobile compact) ── */
+    .flow-wrap {
+      display: flex;
+      align-items: center;
+      overflow-x: auto;
+      gap: 0;
+      padding: 2px 0 8px;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+    }
+    .flow-wrap::-webkit-scrollbar { display: none; }
+    .flow-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 62px;
+      min-width: 78px;
+      border-radius: 8px;
+      padding: 0 8px;
+      gap: 2px;
+      flex-shrink: 0;
+      text-align: center;
+    }
+    .flow-node .fn-title { font-size: 9px; font-weight: 700; line-height: 1.2; }
+    .flow-node .fn-sub { font-size: 7.5px; color: #6e7681; }
+    .flow-node .fn-val { font-size: 13px; font-weight: 700; color: #e6edf3; }
+    .flow-node .fn-unit { font-size: 8px; color: #8b949e; }
+    .flow-arrow {
+      width: 18px; height: 2px; flex-shrink: 0; position: relative;
+    }
+    .flow-arrow::after {
+      content: '';
+      position: absolute;
+      right: -4px; top: -3px;
+      border-left: 6px solid currentColor;
+      border-top: 4px solid transparent;
+      border-bottom: 4px solid transparent;
+    }
+
+    /* ── KPI 2×2 grid ── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .kpi-card {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 12px 13px;
+    }
+    .kpi-label { font-size: 10px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+    .kpi-value { font-size: 22px; font-weight: 700; line-height: 1; }
+    .kpi-unit { font-size: 11px; color: #8b949e; font-weight: 400; margin-left: 2px; }
+    .kpi-change { font-size: 10px; font-weight: 500; margin-top: 4px; display: flex; align-items: center; gap: 3px; }
+    .kpi-change.up { color: #3fb950; }
+    .kpi-change.down { color: #f85149; }
+    .kpi-change.neutral { color: #8b949e; }
+    .kpi-footer { font-size: 9.5px; color: #8b949e; margin-top: 6px; padding-top: 6px; border-top: 1px solid #21262d; }
+
+    /* ── Card ── */
+    .card {
+      background: #161b22;
+      border: 1px solid #21262d;
+      border-radius: 10px;
+      padding: 13px 14px;
+      margin-bottom: 12px;
+    }
+    .card-title { font-size: 11px; font-weight: 600; color: #8b949e; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; }
+
+    /* ── Chart toggle ── */
+    .chart-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .chart-toggle { display: flex; background: #21262d; border-radius: 6px; padding: 3px; gap: 2px; }
+    .ct-btn {
+      padding: 4px 9px; border-radius: 4px; font-size: 10px; font-weight: 600;
+      border: none; cursor: pointer; transition: all 0.15s; color: #8b949e; background: transparent;
+    }
+    .ct-btn.active { background: #30363d; color: #e6edf3; }
+
+    /* ── Progress bar ── */
+    .progress-bar { height: 4px; background: #21262d; border-radius: 2px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 2px; transition: width 0.8s ease; }
+
+    /* ── Status list ── */
+    .status-list { display: flex; flex-direction: column; gap: 0; }
+    .status-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid #21262d;
+      gap: 10px;
+    }
+    .status-item:last-child { border-bottom: none; }
+    .si-block {
+      width: 32px; height: 32px; border-radius: 7px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; flex-shrink: 0;
+    }
+    .si-block-gt { background: rgba(31,111,235,0.2); color: #58a6ff; }
+    .si-block-st { background: rgba(63,185,80,0.15); color: #3fb950; }
+    .si-info { flex: 1; min-width: 0; }
+    .si-name { font-size: 12px; font-weight: 600; }
+    .si-type { font-size: 10px; color: #8b949e; }
+    .si-right { text-align: right; flex-shrink: 0; }
+    .si-mw { font-size: 14px; font-weight: 700; }
+    .si-load { font-size: 10px; color: #8b949e; margin-top: 1px; }
+
+    /* ── Bottom nav ── */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 62px;
+      background: #161b22;
+      border-top: 1px solid #21262d;
+      display: flex;
+      z-index: 100;
+    }
+    .nav-tab {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      cursor: pointer;
+      color: #6e7681;
+      font-size: 9.5px;
+      font-weight: 500;
+      transition: color 0.15s;
+      border: none;
+      background: transparent;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .nav-tab.active { color: #58a6ff; }
+    .nav-tab svg { width: 20px; height: 20px; }
+    .nav-tab .nav-dot {
+      width: 3px; height: 3px; border-radius: 50%; background: #58a6ff;
+      position: absolute; bottom: 6px;
+    }
+
+    /* ── Section group label ── */
+    .group-label {
+      font-size: 9px; font-weight: 700; color: #484f58;
+      letter-spacing: 1.5px; text-transform: uppercase;
+      margin: 4px 0 8px;
+    }
+
+    /* safe area for iPhone notch */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      body { padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
+      .bottom-nav { padding-bottom: env(safe-area-inset-bottom); height: calc(62px + env(safe-area-inset-bottom)); }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-left">
+    <div class="header-logo">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>
+      </svg>
+    </div>
+    <div>
+      <div class="header-title">HKP Dashboard</div>
+      <div class="header-sub" data-th="ระบบติดตามประสิทธิภาพโรงไฟฟ้า" data-en="Plant Performance Monitoring">ระบบติดตามประสิทธิภาพโรงไฟฟ้า</div>
+    </div>
+  </div>
+  <div class="lang-toggle">
+    <button class="lang-btn active" onclick="setLang('th')" id="btn-th">TH</button>
+    <button class="lang-btn" onclick="setLang('en')" id="btn-en">EN</button>
+  </div>
+</div>
+
+<!-- ══════════════ PAGE: OVERVIEW ══════════════ -->
+<div class="page active" id="page-overview">
+
+  <!-- Status banner -->
+  <div class="status-banner">
+    <div class="status-left">
+      <div class="plant-label" data-th="โรงไฟฟ้าพลังความร้อนร่วม" data-en="Combined Cycle Power Plant">โรงไฟฟ้าพลังความร้อนร่วม</div>
+      <div class="plant-name" data-th="สถานะ HKP" data-en="HKP Status">สถานะ HKP</div>
+      <div style="margin-top:6px;display:flex;align-items:center;gap:6px;">
+        <span class="badge badge-green"><span class="dot dot-green"></span><span data-th="ระบบปกติ" data-en="Normal">ระบบปกติ</span></span>
+        <span style="font-size:9px;color:#484f58;">Single Shaft · 2 Blocks</span>
+      </div>
+    </div>
+    <div class="status-right">
+      <div class="status-mw">700</div>
+      <div class="status-mw-label">MW</div>
+      <div style="font-size:9px;color:#8b949e;margin-top:3px;" data-th="กำลังผลิต" data-en="Capacity">กำลังผลิต</div>
+    </div>
+  </div>
+
+  <!-- Flow diagram (horizontal scroll) -->
+  <div class="card" style="padding:10px 12px;margin-bottom:12px;overflow:hidden;">
+    <div style="font-size:9px;color:#484f58;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;" data-th="ผังระบบ" data-en="Plant Flow">ผังระบบ</div>
+    <div class="flow-wrap">
+
+      <!-- PTT -->
+      <div class="flow-node" style="background:rgba(88,166,255,0.08);border:1px solid rgba(88,166,255,0.2);min-width:72px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+        </svg>
+        <div class="fn-title" style="color:#58a6ff;">PTT Gas</div>
+        <div class="fn-sub" data-th="สถานีวัดก๊าซ" data-en="Metering">สถานีวัดก๊าซ</div>
+      </div>
+
+      <div class="flow-arrow" style="background:rgba(88,166,255,0.6);color:rgba(88,166,255,0.6);"></div>
+
+      <!-- GT -->
+      <div class="flow-node" style="background:rgba(31,111,235,0.12);border:1px solid rgba(31,111,235,0.35);min-width:80px;position:relative;">
+        <div class="fn-title" style="color:#58a6ff;">Gas Turbine</div>
+        <div class="fn-sub" data-th="B1 · B2" data-en="B1 · B2">B1 · B2</div>
+        <div class="fn-val">390 <span class="fn-unit">MW</span></div>
+        <span class="dot dot-green" style="position:absolute;top:5px;right:6px;"></span>
+      </div>
+
+      <div class="flow-arrow" style="background:rgba(210,153,34,0.7);color:rgba(210,153,34,0.7);"></div>
+
+      <!-- HRSG -->
+      <div class="flow-node" style="background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.25);min-width:76px;">
+        <div class="fn-title" style="color:#d2991f;">HRSG</div>
+        <div class="fn-sub" data-th="B1 · B2" data-en="B1 · B2">B1 · B2</div>
+        <div class="fn-val">98.2 <span class="fn-unit">%</span></div>
+      </div>
+
+      <div class="flow-arrow" style="background:rgba(63,185,80,0.6);color:rgba(63,185,80,0.6);"></div>
+
+      <!-- ST -->
+      <div class="flow-node" style="background:rgba(63,185,80,0.08);border:1px solid rgba(63,185,80,0.25);min-width:80px;position:relative;">
+        <div class="fn-title" style="color:#3fb950;">Steam Turbine</div>
+        <div class="fn-sub" data-th="B1 · B2" data-en="B1 · B2">B1 · B2</div>
+        <div class="fn-val">310 <span class="fn-unit">MW</span></div>
+        <span class="dot dot-green" style="position:absolute;top:5px;right:6px;"></span>
+      </div>
+
+      <div class="flow-arrow" style="background:rgba(63,185,80,0.5);color:rgba(63,185,80,0.5);"></div>
+
+      <!-- Generator -->
+      <div class="flow-node" style="background:rgba(63,185,80,0.1);border:1px solid rgba(63,185,80,0.35);min-width:80px;">
+        <div class="fn-title" style="color:#3fb950;" data-th="เครื่องกำเนิด" data-en="Generator">เครื่องกำเนิด</div>
+        <div class="fn-sub" data-th="B1 · B2" data-en="B1 · B2">B1 · B2</div>
+        <div class="fn-val">700 <span class="fn-unit">MW</span></div>
+      </div>
+
+      <div class="flow-arrow" style="background:rgba(200,210,220,0.4);color:rgba(200,210,220,0.4);"></div>
+
+      <!-- Grid -->
+      <div class="flow-node" style="background:rgba(240,246,252,0.05);border:1px solid rgba(240,246,252,0.12);min-width:64px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#adbac7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/>
+          <line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/>
+        </svg>
+        <div class="fn-title" style="color:#adbac7;" data-th="สายส่ง" data-en="Grid">สายส่ง</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- KPI 2×2 -->
+  <div class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label" data-th="อัตราความร้อน" data-en="Heat Rate">อัตราความร้อน</div>
+      <div><span class="kpi-value" style="color:#58a6ff;">7,842</span><span class="kpi-unit">kJ/kWh</span></div>
+      <div class="kpi-change down">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></svg>
+        -1.2% <span style="color:#8b949e;font-weight:400;" data-th="จากเป้า" data-en="vs target">จากเป้า</span>
+      </div>
+      <div class="kpi-footer" data-th="เป้า: 7,750 kJ/kWh" data-en="Target: 7,750 kJ/kWh">เป้า: 7,750 kJ/kWh</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label" data-th="กำลังผลิตเฉลี่ย" data-en="Avg. Output">กำลังผลิตเฉลี่ย</div>
+      <div><span class="kpi-value" style="color:#3fb950;">682.4</span><span class="kpi-unit">MW</span></div>
+      <div class="kpi-change up">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        +2.4% <span style="color:#8b949e;font-weight:400;" data-th="สัปดาห์นี้" data-en="this week">สัปดาห์นี้</span>
+      </div>
+      <div class="kpi-footer" data-th="ติดตั้ง 700 MW (97.5%)" data-en="Installed 700 MW (97.5%)">ติดตั้ง 700 MW (97.5%)</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label" data-th="การผลิตพลังงาน" data-en="Energy Gen.">การผลิตพลังงาน</div>
+      <div><span class="kpi-value" style="color:#d2991f;">115.2</span><span class="kpi-unit">GWh</span></div>
+      <div class="kpi-change up">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        +3.1% <span style="color:#8b949e;font-weight:400;" data-th="สัปดาห์นี้" data-en="this week">สัปดาห์นี้</span>
+      </div>
+      <div class="kpi-footer" data-th="เป้าเดือน: 480 GWh" data-en="Monthly target: 480 GWh">เป้าเดือน: 480 GWh</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label" data-th="เชื้อเพลิง" data-en="Fuel">เชื้อเพลิง</div>
+      <div><span class="kpi-value" style="color:#a371f7;">24.8</span><span class="kpi-unit">MMSCFD</span></div>
+      <div class="kpi-change neutral">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        ±0.3% <span style="color:#8b949e;font-weight:400;" data-th="จากแผน" data-en="vs plan">จากแผน</span>
+      </div>
+      <div class="kpi-footer" data-th="แผน: 24.9 MMSCFD" data-en="Plan: 24.9 MMSCFD">แผน: 24.9 MMSCFD</div>
+    </div>
+  </div>
+
+  <!-- Combined chart -->
+  <div class="card">
+    <div class="chart-header">
+      <div>
+        <div id="m-chart-title" style="font-size:11px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:0.4px;" data-th="กำลังผลิตจ่ายกริด" data-en="Output Load to Grid">กำลังผลิตจ่ายกริด</div>
+        <div id="m-chart-sub" style="font-size:10px;color:#484f58;margin-top:1px;" data-th="แผน vs จริง (MW)" data-en="Plan vs Actual (MW)">แผน vs จริง (MW)</div>
+      </div>
+      <div class="chart-toggle">
+        <button class="ct-btn active" id="m-btn-out" onclick="mSwitchChart('output')" data-th="กำลังผลิต" data-en="Output">กำลังผลิต</button>
+        <button class="ct-btn" id="m-btn-hr" onclick="mSwitchChart('heatrate')" data-th="Heat Rate" data-en="Heat Rate">Heat Rate</button>
+      </div>
+    </div>
+    <div style="position:relative;">
+      <canvas id="m-outputChart" height="160"></canvas>
+      <canvas id="m-hrChart" height="160" style="display:none;"></canvas>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════ PAGE: EQUIPMENT ══════════════ -->
+<div class="page" id="page-equip">
+  <div class="group-label" data-th="บล็อก 1 · Single Shaft" data-en="Block 1 · Single Shaft">บล็อก 1 · Single Shaft</div>
+  <div class="card" style="padding:10px 14px;">
+    <div class="status-list">
+      <div class="status-item">
+        <div class="si-block si-block-gt">GT</div>
+        <div class="si-info">
+          <div class="si-name">B1 — Gas Turbine</div>
+          <div class="si-type" data-th="อัตราความร้อน: 7,820 kJ/kWh" data-en="Heat Rate: 7,820 kJ/kWh">อัตราความร้อน: 7,820 kJ/kWh</div>
+          <div style="margin-top:5px;">
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:#8b949e;margin-bottom:2px;"><span data-th="โหลด" data-en="Load">โหลด</span><span style="color:#3fb950;">93.9%</span></div>
+            <div class="progress-bar" style="width:100%;"><div class="progress-fill" style="width:93.9%;background:#3fb950;"></div></div>
+          </div>
+        </div>
+        <div class="si-right">
+          <div class="si-mw" style="color:#e6edf3;">195.2</div>
+          <div class="si-load">MW</div>
+          <div style="margin-top:4px;"><span class="badge badge-green"><span class="dot dot-green"></span><span data-th="เดินเครื่อง" data-en="Running">เดินเครื่อง</span></span></div>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="si-block si-block-st">ST</div>
+        <div class="si-info">
+          <div class="si-name">B1 — Steam Turbine</div>
+          <div class="si-type" data-th="ชั่วโมงเดิน: 2,184 h" data-en="Run Hours: 2,184 h">ชั่วโมงเดิน: 2,184 h</div>
+          <div style="margin-top:5px;">
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:#8b949e;margin-bottom:2px;"><span data-th="โหลด" data-en="Load">โหลด</span><span style="color:#3fb950;">97.8%</span></div>
+            <div class="progress-bar" style="width:100%;"><div class="progress-fill" style="width:97.8%;background:#3fb950;"></div></div>
+          </div>
+        </div>
+        <div class="si-right">
+          <div class="si-mw" style="color:#e6edf3;">155.2</div>
+          <div class="si-load">MW</div>
+          <div style="margin-top:4px;"><span class="badge badge-green"><span class="dot dot-green"></span><span data-th="เดินเครื่อง" data-en="Running">เดินเครื่อง</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="group-label" data-th="บล็อก 2 · Single Shaft" data-en="Block 2 · Single Shaft">บล็อก 2 · Single Shaft</div>
+  <div class="card" style="padding:10px 14px;">
+    <div class="status-list">
+      <div class="status-item">
+        <div class="si-block si-block-gt">GT</div>
+        <div class="si-info">
+          <div class="si-name">B2 — Gas Turbine</div>
+          <div class="si-type" data-th="อัตราความร้อน: 7,990 kJ/kWh" data-en="Heat Rate: 7,990 kJ/kWh">อัตราความร้อน: 7,990 kJ/kWh</div>
+          <div style="margin-top:5px;">
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:#8b949e;margin-bottom:2px;"><span data-th="โหลด" data-en="Load">โหลด</span><span style="color:#d2991f;">93.7%</span></div>
+            <div class="progress-bar" style="width:100%;"><div class="progress-fill" style="width:93.7%;background:#d2991f;"></div></div>
+          </div>
+        </div>
+        <div class="si-right">
+          <div class="si-mw" style="color:#e6edf3;">194.8</div>
+          <div class="si-load">MW</div>
+          <div style="margin-top:4px;"><span class="badge badge-yellow"><span class="dot dot-yellow"></span><span data-th="ลดโหลด" data-en="Derate">ลดโหลด</span></span></div>
+        </div>
+      </div>
+      <div class="status-item">
+        <div class="si-block si-block-st">ST</div>
+        <div class="si-info">
+          <div class="si-name">B2 — Steam Turbine</div>
+          <div class="si-type" data-th="ชั่วโมงเดิน: 3,421 h" data-en="Run Hours: 3,421 h">ชั่วโมงเดิน: 3,421 h</div>
+          <div style="margin-top:5px;">
+            <div style="display:flex;justify-content:space-between;font-size:9px;color:#8b949e;margin-bottom:2px;"><span data-th="โหลด" data-en="Load">โหลด</span><span style="color:#3fb950;">98.4%</span></div>
+            <div class="progress-bar" style="width:100%;"><div class="progress-fill" style="width:98.4%;background:#3fb950;"></div></div>
+          </div>
+        </div>
+        <div class="si-right">
+          <div class="si-mw" style="color:#e6edf3;">155.2</div>
+          <div class="si-load">MW</div>
+          <div style="margin-top:4px;"><span class="badge badge-green"><span class="dot dot-green"></span><span data-th="เดินเครื่อง" data-en="Running">เดินเครื่อง</span></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Production split -->
+  <div class="card">
+    <div class="card-title" data-th="สัดส่วนการผลิต" data-en="Production Split">สัดส่วนการผลิต</div>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <canvas id="m-donut" width="100" height="100" style="flex-shrink:0;"></canvas>
+      <div style="flex:1;">
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+              <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#1f6feb;"></span>Gas Turbine</span>
+              <span style="font-weight:600;">390 MW <span style="color:#58a6ff;">(55.7%)</span></span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" style="width:55.7%;background:#1f6feb;"></div></div>
+          </div>
+          <div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px;">
+              <span style="display:flex;align-items:center;gap:5px;color:#8b949e;"><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:#3fb950;"></span>Steam Turbine</span>
+              <span style="font-weight:600;">310 MW <span style="color:#3fb950;">(44.3%)</span></span>
+            </div>
+            <div class="progress-bar"><div class="progress-fill" style="width:44.3%;background:#3fb950;"></div></div>
+          </div>
+        </div>
+        <div style="margin-top:10px;padding-top:10px;border-top:1px solid #21262d;display:flex;justify-content:space-between;font-size:11px;color:#8b949e;">
+          <span data-th="รวม / ใช้งาน" data-en="Total / Util.">รวม / ใช้งาน</span>
+          <span><span style="color:#e6edf3;font-weight:600;">700 MW</span> / <span style="color:#3fb950;font-weight:600;">97.5%</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ PAGE: REPORTS ══════════════ -->
+<div class="page" id="page-report">
+  <div class="card" style="text-align:center;padding:32px 16px;">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#484f58" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 12px;">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+    </svg>
+    <div style="font-size:13px;font-weight:600;color:#6e7681;" data-th="รายงานประจำวัน" data-en="Daily Report">รายงานประจำวัน</div>
+    <div style="font-size:11px;color:#484f58;margin-top:4px;" data-th="กำลังพัฒนา..." data-en="Coming soon...">กำลังพัฒนา...</div>
+  </div>
+</div>
+
+<!-- ══════════════ BOTTOM NAV ══════════════ -->
+<div class="bottom-nav">
+  <button class="nav-tab active" id="nav-overview" onclick="switchPage('overview')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/>
+      <rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/>
+    </svg>
+    <span data-th="ภาพรวม" data-en="Overview">ภาพรวม</span>
+  </button>
+  <button class="nav-tab" id="nav-equip" onclick="switchPage('equip')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+    </svg>
+    <span data-th="เครื่องจักร" data-en="Equipment">เครื่องจักร</span>
+  </button>
+  <button class="nav-tab" id="nav-report" onclick="switchPage('report')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+    </svg>
+    <span data-th="รายงาน" data-en="Reports">รายงาน</span>
+  </button>
+</div>
+
+<script>
+  // ── Language ──
+  let currentLang = 'th';
+  function setLang(lang) {
+    currentLang = lang;
+    document.getElementById('btn-th').classList.toggle('active', lang === 'th');
+    document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+    document.querySelectorAll('[data-th][data-en]').forEach(el => {
+      el.textContent = el.getAttribute('data-' + lang);
+    });
+  }
+
+  // ── Page switch ──
+  function switchPage(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    document.getElementById('nav-' + page).classList.add('active');
+    window.scrollTo(0, 0);
+  }
+
+  // ── Chart defaults ──
+  Chart.defaults.color = '#8b949e';
+  Chart.defaults.font.family = "'Sarabun', sans-serif";
+  Chart.defaults.font.size = 10;
+
+  // ── Output chart ──
+  const outCtx = document.getElementById('m-outputChart').getContext('2d');
+  const mOutputChart = new Chart(outCtx, {
+    type: 'bar',
+    data: {
+      labels: ['จ.','อ.','พ.','พฤ.','ศ.','ส.','อา.'],
+      datasets: [
+        { label: 'จริง', data: [675,688,671,695,682,670,683], backgroundColor: 'rgba(88,166,255,0.75)', borderColor: '#58a6ff', borderWidth: 1, borderRadius: 3, order: 2 },
+        { label: 'แผน', data: [680,680,680,680,680,680,680], type: 'line', borderColor: '#484f58', borderDash:[4,3], borderWidth:1.5, pointRadius:0, fill:false, order:1 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend:{ display:false }, tooltip:{ backgroundColor:'#21262d', borderColor:'#30363d', borderWidth:1, titleColor:'#e6edf3', bodyColor:'#8b949e' }},
+      scales: {
+        x: { grid:{ color:'#21262d' }, border:{ color:'#30363d' }},
+        y: { grid:{ color:'#21262d' }, border:{ color:'#30363d' }, min:640, max:720, ticks:{ callback: v => v+' MW', maxTicksLimit:5 }}
+      }
+    }
+  });
+
+  // ── Heat rate chart ──
+  const hrCtx2 = document.getElementById('m-hrChart').getContext('2d');
+  const hrGrad = hrCtx2.createLinearGradient(0,0,0,160);
+  hrGrad.addColorStop(0,'rgba(88,166,255,0.2)'); hrGrad.addColorStop(1,'rgba(88,166,255,0)');
+  const mHrChart = new Chart(hrCtx2, {
+    type: 'line',
+    data: {
+      labels: Array.from({length:24},(_,i)=>i+'h'),
+      datasets: [{ data:[7810,7830,7845,7820,7800,7780,7760,7790,7825,7842,7860,7880,7870,7855,7842,7830,7820,7810,7800,7815,7830,7850,7842,7838], borderColor:'#58a6ff', borderWidth:1.8, pointRadius:0, fill:true, backgroundColor:hrGrad, tension:0.4 }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{display:false}, tooltip:{ backgroundColor:'#21262d', borderColor:'#30363d', borderWidth:1, titleColor:'#e6edf3', bodyColor:'#58a6ff', callbacks:{ label: ctx => ` ${ctx.parsed.y.toLocaleString()} kJ/kWh` }}},
+      scales: {
+        x: { grid:{display:false}, border:{color:'#30363d'}, ticks:{maxTicksLimit:6}},
+        y: { grid:{color:'#21262d'}, border:{color:'#30363d'}, min:7700, max:7950, ticks:{ callback: v=>v.toLocaleString(), maxTicksLimit:5 }}
+      }
+    }
+  });
+
+  // ── Chart toggle ──
+  function mSwitchChart(type) {
+    const outC = document.getElementById('m-outputChart');
+    const hrC  = document.getElementById('m-hrChart');
+    const bO   = document.getElementById('m-btn-out');
+    const bH   = document.getElementById('m-btn-hr');
+    const title = document.getElementById('m-chart-title');
+    const sub   = document.getElementById('m-chart-sub');
+    if (type === 'output') {
+      outC.style.display=''; hrC.style.display='none';
+      bO.classList.add('active'); bH.classList.remove('active');
+      title.setAttribute('data-th','กำลังผลิตจ่ายกริด'); title.setAttribute('data-en','Output Load to Grid');
+      sub.setAttribute('data-th','แผน vs จริง (MW)'); sub.setAttribute('data-en','Plan vs Actual (MW)');
+    } else {
+      outC.style.display='none'; hrC.style.display='';
+      bH.classList.add('active'); bO.classList.remove('active');
+      title.setAttribute('data-th','แนวโน้มอัตราความร้อน'); title.setAttribute('data-en','Heat Rate Trend');
+      sub.setAttribute('data-th','รายชั่วโมง (kJ/kWh)'); sub.setAttribute('data-en','Hourly (kJ/kWh)');
+      mHrChart.resize();
+    }
+    title.textContent = title.getAttribute('data-' + currentLang);
+    sub.textContent   = sub.getAttribute('data-' + currentLang);
+  }
+
+  // ── Donut ──
+  new Chart(document.getElementById('m-donut').getContext('2d'), {
+    type: 'doughnut',
+    data: { labels:['Gas Turbine','Steam Turbine'], datasets:[{ data:[390,310], backgroundColor:['#1f6feb','#3fb950'], borderColor:['#161b22','#161b22'], borderWidth:3, hoverOffset:4 }]},
+    options: { cutout:'68%', responsive:false, plugins:{ legend:{display:false}, tooltip:{ backgroundColor:'#21262d', borderColor:'#30363d', borderWidth:1, callbacks:{ label: ctx=>` ${ctx.label}: ${ctx.parsed} MW` }}}}
+  });
+
+  // ── Animate progress bars ──
+  setTimeout(()=>{
+    document.querySelectorAll('.progress-fill').forEach(el=>{
+      const w=el.style.width; el.style.width='0';
+      setTimeout(()=>{ el.style.width=w; },100);
+    });
+  },300);
+
+  // Init
+  setLang('th');
+</script>
+</body>
+</html>
