@@ -14,6 +14,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.35; }
+      50%       { opacity: 0.75; }
+    }
     body {
       font-family: 'Sarabun', 'Inter', sans-serif;
       background: #0d1117;
@@ -330,33 +334,27 @@
 
     <div class="nav-section-label" data-th="เครื่องจักร" data-en="EQUIPMENT">เครื่องจักร</div>
 
-    <a class="nav-item" href="#">
+    <a class="nav-item" href="gt_prototype.html">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
         <path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/>
       </svg>
       <span data-th="Gas Turbine" data-en="Gas Turbine">Gas Turbine</span>
     </a>
-    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;" data-active-sub><span data-th="บล็อก 1" data-en="Block 1">บล็อก 1</span></div>
-    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 2" data-en="Block 2">บล็อก 2</span></div>
 
-    <a class="nav-item" href="#" style="margin-top:2px;">
+    <a class="nav-item" href="st_analysis.html" style="margin-top:2px;">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
       </svg>
       <span data-th="Steam Turbine" data-en="Steam Turbine">Steam Turbine</span>
     </a>
-    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 1" data-en="Block 1">บล็อก 1</span></div>
-    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 2" data-en="Block 2">บล็อก 2</span></div>
 
-    <a class="nav-item" href="#" style="margin-top:2px;">
+    <a class="nav-item" href="hrsg_analysis.html" style="margin-top:2px;">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
       </svg>
       <span data-th="HRSG" data-en="HRSG">HRSG</span>
     </a>
-    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 1" data-en="Block 1">บล็อก 1</span></div>
-    <div class="nav-item nav-sub" style="padding:5px 18px 5px 44px;cursor:pointer;border-radius:5px;margin:0 8px;"><span data-th="บล็อก 2" data-en="Block 2">บล็อก 2</span></div>
 
     <div class="nav-section-label" style="margin-top:8px;" data-th="รายงาน" data-en="REPORTS">รายงาน</div>
 
@@ -702,7 +700,7 @@
             <th style="text-align:left;padding:8px 12px;color:#8b949e;font-weight:500;" data-th="ชั่วโมงเดิน" data-en="Run Hours">Run Hours</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="block-table-body">
           <!-- Block 1 group header -->
           <tr style="background:#0d1117;">
             <td colspan="7" style="padding:6px 12px;">
@@ -785,9 +783,22 @@
     </div>
   </div>
 
+  <!-- Data notice banner (hidden by default, shown when data.json not found) -->
+  <div id="data-notice" style="display:none;background:rgba(210,153,34,0.1);
+    border:1px solid rgba(210,153,34,0.3);border-radius:8px;
+    padding:10px 16px;margin-bottom:14px;font-size:12px;color:#d2991f;
+    align-items:center;gap:8px;">
+    ⚠️ <span data-th="แสดงข้อมูลตัวอย่าง — ยังไม่พบ data.json"
+               data-en="Showing sample data — data.json not found">
+         แสดงข้อมูลตัวอย่าง — ยังไม่พบ data.json
+       </span>
+  </div>
+
   <!-- Footer -->
   <div style="margin-top:20px;text-align:center;font-size:11px;color:#484f58;padding:12px 0;">
-    HKP Power Plant Dashboard · <span data-th="ข้อมูลจำลอง (Mock Data)" data-en="Simulated Data (Mock)">Simulated Data (Mock)</span> · v1.0.0
+    HKP Power Plant Dashboard · <span id="data-source-label"
+      data-th="ข้อมูลจำลอง (Mock Data)" data-en="Simulated Data (Mock)">
+      ข้อมูลจำลอง (Mock Data)</span> · v1.0.0
   </div>
 
 </div>
@@ -806,12 +817,14 @@
       el.textContent = el.getAttribute('data-' + lang);
     });
 
-    // Update subtitle
-    const sub = document.getElementById('lastUpdate');
-    if (lang === 'en') {
-      sub.textContent = 'Last updated: 16 May 2026 | 08:45';
+    // Update subtitle — use real timestamp if data loaded, else hardcoded
+    if (window._dashData && window._dashData.meta && window._dashData.meta.generated_at) {
+      updateLastUpdated(window._dashData.meta.generated_at);
     } else {
-      sub.textContent = 'อัปเดตล่าสุด: 16 พ.ค. 2569 | 08:45';
+      const sub = document.getElementById('lastUpdate');
+      sub.textContent = lang === 'en'
+        ? 'Last updated: 16 May 2026 | 08:45'
+        : 'อัปเดตล่าสุด: 16 พ.ค. 2569 | 08:45';
     }
   }
 
@@ -825,9 +838,13 @@
 
   // ── Refresh ──
   function refreshData() {
-    // Animate numbers slightly
-    animateNumber('kpi-heat-rate', 7842, 7842 + Math.floor(Math.random()*40 - 20));
-    animateNumber('kpi-output', 682.4, parseFloat((682 + Math.random()*5 - 2).toFixed(1)));
+    // Re-fetch real data; fallback to mock animation if no data.json
+    if (typeof loadDashboardData === 'function') {
+      loadDashboardData();
+    } else {
+      animateNumber('kpi-heat-rate', 7842, 7842 + Math.floor(Math.random()*40 - 20));
+      animateNumber('kpi-output', 682.4, parseFloat((682 + Math.random()*5 - 2).toFixed(1)));
+    }
   }
 
   function animateNumber(id, from, to) {
@@ -1061,11 +1078,184 @@
   }, 300);
 
   function updateChartsForPeriod(period) {
-    // Placeholder – in real app, fetch new data
-    outputChart.update();
+    if (window._dashData) loadDashboardData();
+    else outputChart.update();
   }
 
-  // Init language
+  // ── Dashboard Data Loading ──────────────────────────────────────────────────
+  const DATA_URL = './data.json';
+  window._dashData = null;
+
+  async function loadDashboardData() {
+    try {
+      showLoadingState();
+      const res = await fetch(DATA_URL + '?t=' + Date.now());
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      window._dashData = await res.json();
+      renderDashboard(window._dashData);
+      // Hide warning banner
+      document.getElementById('data-notice').style.display = 'none';
+      // Update footer label
+      const srcLbl = document.getElementById('data-source-label');
+      if (srcLbl && window._dashData.meta) {
+        const src = window._dashData.meta.source_file || '';
+        srcLbl.textContent = currentLang === 'th'
+          ? 'ข้อมูลจริง' + (src ? ' · ' + src : '')
+          : 'Live Data' + (src ? ' · ' + src : '');
+      }
+    } catch (err) {
+      showFallbackMock();
+      document.getElementById('data-notice').style.display = 'flex';
+      console.warn('Dashboard: using mock data —', err.message);
+    }
+  }
+
+  function renderDashboard(d) {
+    const kpi = d.kpi || {};
+    if (kpi.heat_rate)
+      document.getElementById('kpi-heat-rate').textContent =
+        Math.round(kpi.heat_rate.value).toLocaleString();
+    if (kpi.output_mw)
+      document.getElementById('kpi-output').textContent =
+        kpi.output_mw.value.toFixed(1);
+    if (kpi.energy_gwh)
+      document.getElementById('kpi-energy').textContent =
+        kpi.energy_gwh.value.toFixed(1);
+    if (kpi.fuel_mmscfd)
+      document.getElementById('kpi-fuel').textContent =
+        kpi.fuel_mmscfd.value.toFixed(1);
+
+    // Output chart
+    const outS = (d.series || {}).output_daily;
+    if (outS && typeof outputChart !== 'undefined') {
+      if (outS.labels) outputChart.data.labels = outS.labels;
+      const vals = outS.values || outS.actual || [];
+      if (vals.length) outputChart.data.datasets[0].data = vals;
+      outputChart.update();
+    }
+
+    // Heat rate chart
+    const hrS = (d.series || {}).heat_rate_hourly;
+    if (hrS && typeof heatRateChart !== 'undefined') {
+      if (hrS.labels) heatRateChart.data.labels = hrS.labels;
+      if (hrS.values) heatRateChart.data.datasets[0].data = hrS.values;
+      heatRateChart.update();
+    }
+
+    // Block status table
+    if (d.blocks) renderBlockTable(d.blocks);
+
+    // Timestamp
+    updateLastUpdated(d.meta && d.meta.generated_at ? d.meta.generated_at : null);
+
+    // Clear loading animation
+    document.querySelectorAll('.kpi-value').forEach(el => {
+      el.style.animation = '';
+      el.style.opacity  = '1';
+    });
+  }
+
+  function renderBlockTable(blocks) {
+    const tbody = document.getElementById('block-table-body');
+    if (!tbody) return;
+    const STATUS = {
+      running:  { cls: 'badge-green',  dot: 'dot-green',  th: 'เดินเครื่อง', en: 'Running'  },
+      derate:   { cls: 'badge-yellow', dot: 'dot-yellow', th: 'ลดโหลด',     en: 'Derate'   },
+      trip:     { cls: 'badge-red',    dot: 'dot-red',    th: 'Trip',         en: 'Trip'     },
+      shutdown: { cls: 'badge-red',    dot: 'dot-red',    th: 'หยุดเดิน',    en: 'Shutdown' },
+    };
+    const ORDER = [
+      { key:'B1_GT', lbl:'GT', pre:'B1', type:'Gas Turbine',
+        grp:'Block 1 · Single Shaft', grpTh:'บล็อก 1 · Single Shaft' },
+      { key:'B1_ST', lbl:'ST', pre:'B1', type:'Steam Turbine', grp:null },
+      { key:'B2_GT', lbl:'GT', pre:'B2', type:'Gas Turbine',
+        grp:'Block 2 · Single Shaft', grpTh:'บล็อก 2 · Single Shaft' },
+      { key:'B2_ST', lbl:'ST', pre:'B2', type:'Steam Turbine', grp:null },
+    ];
+    let html = '';
+    for (const blk of ORDER) {
+      if (blk.grp) {
+        html += `<tr style="background:#0d1117;">
+          <td colspan="7" style="padding:6px 12px;">
+            <span style="font-size:10px;font-weight:700;color:#484f58;
+              letter-spacing:1px;text-transform:uppercase;"
+              data-th="${blk.grpTh}" data-en="${blk.grp}">${currentLang==='th'?blk.grpTh:blk.grp}</span>
+          </td></tr>`;
+      }
+      const d = blocks[blk.key];
+      if (!d) continue;
+      const st  = STATUS[d.status] || STATUS.running;
+      const out = d.output != null ? (+d.output).toFixed(1)
+                : d.output_mw != null ? (+d.output_mw).toFixed(1) : '—';
+      const hr  = d.heat_rate != null ? Math.round(+d.heat_rate).toLocaleString() : '—';
+      const hrC = d.heat_rate && +d.heat_rate > 7900 ? '#f85149' : '#58a6ff';
+      const ld  = d.load != null ? +d.load : d.load_pct != null ? +d.load_pct : null;
+      const ldC = ld == null ? '#8b949e' : ld > 85 ? '#3fb950' : ld > 50 ? '#d2991f' : '#f85149';
+      const hrs = d.run_hours != null ? (+d.run_hours).toLocaleString() + ' h'
+                : d.hours != null ? (+d.hours).toLocaleString() + ' h' : '—';
+      const ldCell = ld != null
+        ? `<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+             <span style="color:${ldC};font-weight:600;">${ld.toFixed(1)}%</span>
+             <div class="progress-bar" style="width:60px;">
+               <div class="progress-fill" style="width:${Math.min(ld,100)}%;background:${ldC};"></div>
+             </div></div>` : '—';
+      html += `<tr style="border-bottom:1px solid #161b22;transition:background 0.1s;"
+          onmouseover="this.style.background='#21262d'" onmouseout="this.style.background=''">
+        <td style="padding:10px 12px;font-weight:600;">
+          <span style="color:#8b949e;font-weight:400;font-size:11px;margin-right:4px;">${blk.pre}</span>${blk.lbl}
+        </td>
+        <td style="padding:10px 12px;color:#8b949e;">${blk.type}</td>
+        <td style="padding:10px 12px;">
+          <span class="badge ${st.cls}"><span class="dot ${st.dot}"></span>
+            <span data-th="${st.th}" data-en="${st.en}">${currentLang==='en'?st.en:st.th}</span>
+          </span>
+        </td>
+        <td style="padding:10px 12px;text-align:right;font-weight:600;color:#e6edf3;">${out}</td>
+        <td style="padding:10px 12px;text-align:right;color:${hrC};font-weight:600;">${hr}</td>
+        <td style="padding:10px 12px;text-align:right;">${ldCell}</td>
+        <td style="padding:10px 12px;color:#8b949e;">${hrs}</td>
+      </tr>`;
+    }
+    tbody.innerHTML = html;
+    // Re-animate progress bars
+    tbody.querySelectorAll('.progress-fill').forEach(el => {
+      const w = el.style.width; el.style.width = '0';
+      setTimeout(() => { el.style.width = w; }, 80);
+    });
+  }
+
+  function updateLastUpdated(isoStr) {
+    const el = document.getElementById('lastUpdate');
+    if (!el) return;
+    if (!isoStr) return;
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return;
+    el.textContent = currentLang === 'th'
+      ? 'อัปเดตล่าสุด: ' + d.toLocaleDateString('th-TH',
+          {year:'numeric',month:'short',day:'numeric'}) + ' | ' +
+        d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit'})
+      : 'Last updated: ' + d.toLocaleDateString('en-GB',
+          {year:'numeric',month:'short',day:'numeric'}) + ' | ' +
+        d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+  }
+
+  function showLoadingState() {
+    document.querySelectorAll('.kpi-value').forEach(el => {
+      el.style.animation = 'pulse 1.2s ease infinite';
+      el.style.opacity   = '0.4';
+    });
+  }
+
+  function showFallbackMock() {
+    // Mock values are already in the HTML — just clear loading state
+    document.querySelectorAll('.kpi-value').forEach(el => {
+      el.style.animation = '';
+      el.style.opacity   = '1';
+    });
+  }
+
+  // Init language + load real data
+  loadDashboardData();
   setLang('th');
 </script>
 
