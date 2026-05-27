@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280">
+<title>HP Steam Anomaly — Block 2 Post-Outage Investigation</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js" onerror="console.warn('annotation plugin failed')"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#05080e;font-family:'Sarabun','Inter',sans-serif;color:#e6edf3}
+:root{
+  --bg:#05080e;--s1:#0a0e16;--s2:#0d1117;--s3:#161b22;
+  --border:#21262d;--border2:#30363d;
+  --text:#e6edf3;--text2:#8b949e;--text3:#484f58;
+  --blue:#58a6ff;--red:#f85149;--green:#3fb950;
+  --orange:#e3873a;--yellow:#d29922;--purple:#a371f7;
+  --anomaly:#ff5733;
+}
+/* SLIDE SYSTEM */
+.deck{position:relative;width:100vw;height:100vh}
+.slide{
+  position:absolute;inset:0;
+  display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;
+  transform:translateX(60px);
+  transition:opacity .35s ease,transform .35s ease;
+}
+.slide.active{opacity:1;pointer-events:all;transform:translateX(0)}
+.slide.exit{opacity:0;transform:translateX(-60px)}
+
+/* NAV */
+.nav{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:12px;z-index:999;
+  background:rgba(10,14,22,0.85);border:1px solid #21262d;
+  border-radius:30px;padding:8px 18px;backdrop-filter:blur(8px);
+}
+.nav-btn{
+  width:30px;height:30px;border-radius:50%;border:none;
+  background:var(--s3);color:var(--text2);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:all .15s;font-size:14px;
+}
+.nav-btn:hover{background:var(--blue);color:var(--bg)}
+.nav-dots{display:flex;gap:6px;align-items:center}
+.dot{
+  width:7px;height:7px;border-radius:50%;background:var(--border2);
+  cursor:pointer;transition:all .2s;
+}
+.dot.active{background:var(--blue);width:20px;border-radius:4px}
+.slide-counter{font-size:11px;color:var(--text3);font-weight:600;min-width:36px;text-align:center}
+
+/* COMMON LAYOUT */
+.slide-body{flex:1;display:flex;flex-direction:column;padding:0 52px 60px}
+.slide-title{
+  font-size:26px;font-weight:700;padding:22px 52px 16px;
+  border-bottom:1px solid var(--border);
+  display:flex;align-items:baseline;gap:12px;
+}
+.slide-tag{
+  font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;
+  padding:3px 10px;border-radius:10px;
+}
+.tag-evidence{background:rgba(88,166,255,.15);color:var(--blue)}
+.tag-theory{background:rgba(163,113,247,.15);color:var(--purple)}
+.tag-finding{background:rgba(248,81,73,.15);color:var(--red)}
+.tag-action{background:rgba(63,185,80,.15);color:var(--green)}
+.tag-cover{background:rgba(255,87,51,.15);color:var(--anomaly)}
+
+.chart-wrap{position:relative;width:100%;height:100%}
+canvas{max-width:100%;max-height:100%}
+
+/* ANNOTATION BOXES */
+.annot{
+  position:absolute;background:#0a0e16;border:1px solid #30363d;
+  border-radius:8px;padding:6px 10px;font-size:11px;
+  line-height:1.5;pointer-events:none;
+  box-shadow:0 4px 20px rgba(0,0,0,.4);
+  max-width:200px;
+}
+.annot-red{border-color:rgba(248,81,73,.5);background:rgba(248,81,73,.08)}
+.annot-blue{border-color:rgba(88,166,255,.4);background:rgba(88,166,255,.08)}
+.annot-orange{border-color:rgba(227,135,58,.5);background:rgba(227,135,58,.08)}
+.annot b{font-weight:700;display:block;margin-bottom:2px}
+
+/* STAT BOXES */
+.stat-box{
+  background:var(--s3);border:1px solid var(--border);
+  border-radius:10px;padding:14px 16px;
+}
+.stat-label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px}
+.stat-val{font-size:24px;font-weight:800;line-height:1}
+.stat-sub{font-size:11px;color:var(--text2);margin-top:4px}
+.badge{display:inline-flex;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700}
+.badge-red{background:rgba(248,81,73,.12);color:var(--red)}
+.badge-green{background:rgba(63,185,80,.12);color:var(--green)}
+.badge-orange{background:rgba(227,135,58,.12);color:var(--orange)}
+.badge-blue{background:rgba(88,166,255,.12);color:var(--blue)}
+.badge-gray{background:rgba(139,148,158,.12);color:var(--text2)}
+
+/* LEGEND */
+.legend{display:flex;gap:16px;font-size:11.5px;color:var(--text2);margin-bottom:6px;align-items:center;flex-wrap:wrap}
+.ldot{width:24px;height:3px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:middle}
+
+/* SOURCE FOOTNOTE */
+.footnote{
+  position:absolute;bottom:58px;left:52px;right:52px;
+  font-size:10.5px;color:var(--text3);
+  display:flex;justify-content:space-between;
+}
+
+/* FLOW DIAGRAM */
+.flow-box{
+  background:var(--s3);border:1px solid var(--border);
+  border-radius:8px;padding:8px 14px;text-align:center;
+  font-size:12px;font-weight:600;white-space:nowrap;
+}
+.flow-box.anomaly{border-color:rgba(248,81,73,.6);background:rgba(248,81,73,.1);color:var(--red)}
+.flow-box.warn{border-color:rgba(227,135,58,.5);background:rgba(227,135,58,.08);color:var(--orange)}
+.flow-box.ok{border-color:rgba(63,185,80,.4);background:rgba(63,185,80,.07);color:var(--green)}
+.flow-box.nodata{border-color:var(--border2);color:var(--text3)}
+.flow-arrow{color:var(--text3);font-size:18px;display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- ========== SLIDE 1: COVER ========== -->
+<div class="slide active" id="s0">
+  <div style="flex:1;display:flex;align-items:stretch;position:relative;overflow:hidden">
+    <!-- BG gradient -->
+    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 70% 50%,rgba(88,100,255,.12) 0%,transparent 70%),radial-gradient(ellipse 40% 40% at 20% 80%,rgba(255,87,51,.08) 0%,transparent 60%);pointer-events:none"></div>
+    <!-- Left content -->
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;padding:64px 52px">
+      <div style="font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--anomaly);margin-bottom:20px">
+        ⚠ HYPOTHESIS REPORT — POST-OUTAGE INVESTIGATION
+      </div>
+      <h1 style="font-size:46px;font-weight:900;line-height:1.1;margin-bottom:16px;letter-spacing:-.5px">
+        HP Steam Path<br>
+        <span style="color:var(--anomaly)">Throttle Restriction</span>
+      </h1>
+      <p style="font-size:19px;color:var(--text2);font-weight:400;margin-bottom:32px;max-width:480px;line-height:1.6">
+        ความผิดปกติของ Block 2 หลัง Planned Outage เม.ย. 2569<br>
+        การวิเคราะห์จากข้อมูล PI — Monthly Median Comparison
+      </p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="stat-box" style="min-width:130px">
+          <div class="stat-label">ST Heat Rate DiD</div>
+          <div class="stat-val" style="color:var(--red)">+71.9</div>
+          <div class="stat-sub">kJ/kWh (B2-specific)</div>
+        </div>
+        <div class="stat-box" style="min-width:130px">
+          <div class="stat-label">Throttle Loss % DiD</div>
+          <div class="stat-val" style="color:var(--orange)">+0.52%</div>
+          <div class="stat-sub">B2 vs B1 post-outage</div>
+        </div>
+        <div class="stat-box" style="min-width:130px">
+          <div class="stat-label">Period Analyzed</div>
+          <div class="stat-val" style="font-size:18px;color:var(--blue)">Aug'25</div>
+          <div class="stat-sub">→ May 2026 (10 months)</div>
+        </div>
+      </div>
+      <div style="margin-top:40px;font-size:11px;color:var(--text3)">
+        Huay Krating Power Plant (HKP) · Filter: GROSS MW 690–720 MW · Data: PI Historian · Run-B only
+      </div>
+    </div>
+    <!-- Right: Turbine schematic SVG -->
+    <div style="width:380px;display:flex;align-items:center;justify-content:center;padding:40px;opacity:.9">
+      <svg viewBox="0 0 320 400" width="320" height="400" style="overflow:visible">
+        <!-- Turbine stages -->
+        <defs>
+          <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="#484f58"/>
+          </marker>
+          <marker id="arr-r" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" fill="rgba(248,81,73,.8)"/>
+          </marker>
+        </defs>
+        <!-- Steam path lines -->
+        <line x1="40" y1="90" x2="110" y2="90" stroke="#30363d" stroke-width="2" marker-end="url(#arr)"/>
+        <!-- HP Valve - anomaly highlight -->
+        <rect x="112" y="74" width="50" height="32" rx="6" fill="rgba(248,81,73,.15)" stroke="rgba(248,81,73,.6)" stroke-width="1.5"/>
+        <text x="137" y="94" text-anchor="middle" fill="#f85149" font-size="9" font-weight="700">HPCV</text>
+        <text x="137" y="103" text-anchor="middle" fill="rgba(248,81,73,.7)" font-size="7">⚠ RESTRICTION</text>
+        <line x1="162" y1="90" x2="220" y2="90" stroke="#30363d" stroke-width="2" marker-end="url(#arr)"/>
+        <!-- HP Turbine -->
+        <rect x="222" y="72" width="70" height="36" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+        <text x="257" y="92" text-anchor="middle" fill="#8b949e" font-size="9" font-weight="600">HP Turbine</text>
+        <text x="257" y="102" text-anchor="middle" fill="#484f58" font-size="7">↓ Expansion</text>
+        <!-- CRH down -->
+        <line x1="257" y1="108" x2="257" y2="145" stroke="#30363d" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+        <!-- Reheater -->
+        <rect x="200" y="147" width="110" height="30" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+        <text x="255" y="166" text-anchor="middle" fill="#8b949e" font-size="8" font-weight="600">Reheater (HRSG)</text>
+        <!-- HRH right -->
+        <line x1="200" y1="162" x2="150" y2="162" stroke="#30363d" stroke-width="1.5" marker-end="url(#arr)"/>
+        <!-- IP Turbine -->
+        <rect x="78" y="147" width="70" height="30" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+        <text x="113" y="166" text-anchor="middle" fill="#8b949e" font-size="9" font-weight="600">IP Turbine</text>
+        <!-- LP down -->
+        <line x1="113" y1="177" x2="113" y2="215" stroke="#30363d" stroke-width="1.5" stroke-dasharray="4,3" marker-end="url(#arr)"/>
+        <!-- LP Turbine -->
+        <rect x="78" y="217" width="70" height="30" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+        <text x="113" y="236" text-anchor="middle" fill="#8b949e" font-size="9" font-weight="600">LP Turbine</text>
+        <!-- Condenser down -->
+        <line x1="113" y1="247" x2="113" y2="280" stroke="#30363d" stroke-width="1.5" marker-end="url(#arr)"/>
+        <rect x="78" y="282" width="70" height="25" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+        <text x="113" y="298" text-anchor="middle" fill="#484f58" font-size="8">Condenser</text>
+        <!-- Generator -->
+        <line x1="257" y1="177" x2="257" y2="236" stroke="#30363d" stroke-width="2" marker-end="url(#arr)"/>
+        <rect x="222" y="238" width="70" height="30" rx="8" fill="rgba(88,166,255,.1)" stroke="rgba(88,166,255,.3)" stroke-width="1.5"/>
+        <text x="257" y="257" text-anchor="middle" fill="var(--blue)" font-size="9" font-weight="700">Generator</text>
+        <!-- HP Steam from HRSG -->
+        <line x1="40" y1="90" x2="40" y2="60" stroke="#30363d" stroke-width="1.5" stroke-dasharray="4,3"/>
+        <rect x="5" y="40" width="70" height="24" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1.5"/>
+        <text x="40" y="55" text-anchor="middle" fill="#8b949e" font-size="8" font-weight="600">HP HRSG</text>
+        <!-- ΔP annotation arrow -->
+        <path d="M 140 68 L 158 50 L 200 40" stroke="rgba(248,81,73,.7)" stroke-width="1" fill="none"/>
+        <rect x="200" y="26" width="110" height="32" rx="6" fill="rgba(248,81,73,.1)" stroke="rgba(248,81,73,.4)" stroke-width="1"/>
+        <text x="255" y="41" text-anchor="middle" fill="#f85149" font-size="8.5" font-weight="700">ΔP ↑ post-outage</text>
+        <text x="255" y="52" text-anchor="middle" fill="rgba(248,81,73,.7)" font-size="7.5">B2: -0.60 vs B1: -0.55 MPa</text>
+        <!-- labels -->
+        <text x="75" y="84" fill="#484f58" font-size="7.5">HP Main Steam</text>
+        <text x="163" y="84" fill="#484f58" font-size="7.5">HP Turbine Inlet</text>
+        <text x="232" y="145" fill="#484f58" font-size="7.5">CRH →</text>
+        <text x="152" y="158" fill="#484f58" font-size="7.5">← HRH</text>
+        <!-- LP steam injection note -->
+        <rect x="200" y="217" width="80" height="25" rx="6" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+        <text x="240" y="233" text-anchor="middle" fill="#484f58" font-size="8">LP Steam</text>
+        <line x1="200" y1="229" x2="148" y2="229" stroke="#30363d" stroke-width="1.5" stroke-dasharray="3,3" marker-end="url(#arr)"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 2: KEY OBSERVATION ========== -->
+<div class="slide" id="s1">
+  <div class="slide-title">
+    <span>ST Heat Rate ของ Block 2 แยกออกจาก Block 1 หลัง Outage</span>
+    <span class="slide-tag tag-finding">Key Finding</span>
+  </div>
+  <div class="slide-body" style="flex-direction:row;gap:20px;padding-top:18px">
+    <!-- Chart: 70% -->
+    <div style="flex:1;position:relative">
+      <div class="legend">
+        <span><span class="ldot" style="background:var(--blue)"></span>ST Heat Rate B1 · Monthly Median</span>
+        <span><span class="ldot" style="background:var(--red)"></span>ST Heat Rate B2 · Monthly Median</span>
+      </div>
+      <div class="chart-wrap" style="height:calc(100% - 28px)">
+        <canvas id="c-sthr"></canvas>
+      </div>
+      <!-- Annotation boxes (positioned by JS after chart renders) -->
+    </div>
+    <!-- Right stat panel: 30% -->
+    <div style="width:260px;display:flex;flex-direction:column;gap:12px;padding-top:28px">
+      <div class="stat-box">
+        <div class="stat-label">Pre-Outage (Jan–Mar '26)</div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <div><div style="font-size:11px;color:var(--text2)">B1 avg</div><div style="font-size:19px;font-weight:700;color:var(--blue)">9,130</div></div>
+          <div style="color:var(--border2);align-self:center">|</div>
+          <div><div style="font-size:11px;color:var(--text2)">B2 avg</div><div style="font-size:19px;font-weight:700;color:var(--red)">9,110</div></div>
+        </div>
+        <div class="stat-sub" style="margin-top:6px">B2 ต่ำกว่า B1 ≈ 20 kJ/kWh <span class="badge badge-gray">ปกติ</span></div>
+      </div>
+      <div class="stat-box" style="border-color:rgba(248,81,73,.35)">
+        <div class="stat-label" style="color:var(--red)">Post-Outage (Apr–May '26)</div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <div><div style="font-size:11px;color:var(--text2)">B1 avg</div><div style="font-size:19px;font-weight:700;color:var(--blue)">9,108</div></div>
+          <div style="color:var(--border2);align-self:center">|</div>
+          <div><div style="font-size:11px;color:var(--text2)">B2 avg</div><div style="font-size:19px;font-weight:700;color:var(--red)">9,163</div></div>
+        </div>
+        <div class="stat-sub" style="margin-top:6px">B2 สูงกว่า B1 ≈ +55 kJ/kWh <span class="badge badge-red">ผิดปกติ</span></div>
+      </div>
+      <div class="stat-box" style="background:rgba(248,81,73,.06);border-color:rgba(248,81,73,.4)">
+        <div class="stat-label">Difference-in-Differences (DiD)</div>
+        <div class="stat-val" style="color:var(--red);font-size:36px;margin-top:4px">+71.9</div>
+        <div class="stat-sub">kJ/kWh — B2-specific increase</div>
+        <div style="margin-top:8px;font-size:11px;color:var(--text2)">(B2_post–B2_pre) − (B1_post–B1_pre)</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">ประเด็นสำคัญ</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-top:4px">
+          ก่อน Outage B1 ≈ B2 ใกล้เคียงกัน<br>
+          หลัง Outage B2 แยกออกอย่างชัดเจน<br>
+          → เป็นปัญหา <strong style="color:var(--red)">B2-specific</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footnote">
+    <span>Source: PI Historian · GROSS MW filter 690–720 MW · Run-B only · Monthly median (15-min data)</span>
+    <span>B1 Stop FGC-A (Apr 26) ไม่ใช่ Planned Outage · B2 CI+ Outage เม.ย. 2569</span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 3: EVIDENCE MAP ========== -->
+<div class="slide" id="s2">
+  <div class="slide-title">
+    <span>ตรวจพบความผิดปกติที่ HP Steam Path — Throttle Valve Area</span>
+    <span class="slide-tag tag-evidence">Evidence Map</span>
+  </div>
+  <div class="slide-body" style="padding-top:18px;gap:16px">
+    <!-- Flow diagram -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:4px;padding:16px 0 8px;flex-wrap:nowrap">
+      <div class="flow-box ok" style="font-size:11px;padding:8px 12px">
+        <div style="font-size:9px;color:inherit;opacity:.7;margin-bottom:2px">HRSG</div>
+        HP FW Inlet<br>Flow
+        <div style="font-size:9px;margin-top:3px" class="badge badge-green">✓ ปกติ*</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box ok" style="font-size:11px;padding:8px 12px">
+        <div style="font-size:9px;opacity:.7;margin-bottom:2px">HRSG</div>
+        HP Drum<br>Pressure
+        <div style="font-size:9px;margin-top:3px" class="badge badge-orange">△ ต่ำกว่า B1</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box ok" style="font-size:11px;padding:8px 12px">
+        <div style="font-size:9px;opacity:.7;margin-bottom:2px">HRSG SH3</div>
+        HP Steam<br>Pressure
+        <div style="font-size:9px;margin-top:3px" class="badge badge-green">✓ ปกติ</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box ok" style="font-size:11px;padding:8px 12px">
+        <div style="font-size:9px;opacity:.7;margin-bottom:2px">Before Valve</div>
+        HP Main<br>Steam Press
+        <div style="font-size:9px;margin-top:3px" class="badge badge-orange">△ ต่ำกว่า B1</div>
+      </div>
+      <div class="flow-arrow" style="color:var(--red);font-weight:900">→</div>
+      <div class="flow-box anomaly" style="font-size:11px;padding:8px 12px;position:relative">
+        <div style="font-size:9px;opacity:.7;margin-bottom:2px">HPCV / HPSV</div>
+        Throttle<br><strong>ΔP ↑↑</strong>
+        <div style="font-size:9px;margin-top:3px" class="badge badge-red">⚠ ผิดปกติ</div>
+        <div style="position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:16px">⚠️</div>
+      </div>
+      <div class="flow-arrow" style="color:var(--red)">→</div>
+      <div class="flow-box anomaly" style="font-size:11px;padding:8px 12px">
+        <div style="font-size:9px;opacity:.7;margin-bottom:2px">After Valve†</div>
+        HP Turbine<br>Inlet Press ↓
+        <div style="font-size:9px;margin-top:3px" class="badge badge-gray">† ไม่มีใน PI</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box anomaly" style="font-size:11px;padding:8px 12px">
+        HP Turbine<br>Work ↓
+        <div style="font-size:9px;margin-top:3px" class="badge badge-red">⚠ ผิดปกติ</div>
+      </div>
+      <div class="flow-arrow">→</div>
+      <div class="flow-box ok" style="font-size:11px;padding:8px 12px">
+        CRH → HRH<br>→ IP / LP
+        <div style="font-size:9px;margin-top:3px" class="badge badge-green">✓ ปกติ</div>
+      </div>
+    </div>
+    <!-- Evidence table -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;flex:1;align-content:start">
+      <!-- E1 -->
+      <div class="stat-box" style="border-color:rgba(248,81,73,.4)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px;font-weight:900;color:var(--red)">E1</span>
+          <div>
+            <div style="font-weight:700;font-size:13px">HP Throttle ΔP เพิ่มขึ้น</div>
+            <div style="font-size:10.5px;color:var(--text2)">B2 −0.48 → −0.60 MPa</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.6">
+          B2 กระโดด <strong style="color:var(--red)">+0.12 MPa</strong> หลัง Outage<br>
+          B1 เพิ่มแค่ +0.03 MPa (ปกติตามโหลด)<br>
+          <span class="badge badge-red" style="margin-top:4px">DiD = −0.07 MPa ✗</span>
+        </div>
+      </div>
+      <!-- E2 -->
+      <div class="stat-box" style="border-color:rgba(248,81,73,.4)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px;font-weight:900;color:var(--red)">E2</span>
+          <div>
+            <div style="font-weight:700;font-size:13px">Throttle Loss % กระโดด</div>
+            <div style="font-size:10.5px;color:var(--text2)">B2 3.28% → 3.86% post-outage</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.6">
+          Normalized metric ชัดกว่า absolute ΔP<br>
+          B1 เพิ่มเพียง 3.40% → 3.47%<br>
+          <span class="badge badge-red" style="margin-top:4px">DiD = +0.49% B2-specific ✗</span>
+        </div>
+      </div>
+      <!-- E3 -->
+      <div class="stat-box" style="border-color:rgba(227,135,58,.4)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px;font-weight:900;color:var(--orange)">E3</span>
+          <div>
+            <div style="font-weight:700;font-size:13px">HP Supply Pressure ต่ำลง</div>
+            <div style="font-size:10.5px;color:var(--text2)">B2 ต่ำกว่า B1 −0.19 MPa (post)</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.6">
+          Pre: B2 สูงกว่า B1 เล็กน้อย (+0.05)<br>
+          Post: B2 ต่ำกว่า B1 (−0.19 MPa)<br>
+          <span class="badge badge-orange" style="margin-top:4px">Dual cause: supply + valve</span>
+        </div>
+      </div>
+      <!-- E4 -->
+      <div class="stat-box" style="border-color:rgba(163,113,247,.4)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px;font-weight:900;color:var(--purple)">E4</span>
+          <div>
+            <div style="font-weight:700;font-size:13px">HRH Energy Shift</div>
+            <div style="font-size:10.5px;color:var(--text2)">B2: ต่ำกว่า → สูงกว่า B1</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.6">
+          Pre: B2 Energy HRH ต่ำกว่า B1 ~3 MJ/h<br>
+          Post: B2 สูงกว่า B1 ~10 MJ/h<br>
+          <span class="badge badge-blue" style="margin-top:4px">Energy redistribution ✓</span>
+        </div>
+      </div>
+      <!-- V1: Not available -->
+      <div class="stat-box" style="border-color:var(--border2)">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+          <span style="font-size:20px;font-weight:900;color:var(--text3)">V?</span>
+          <div>
+            <div style="font-weight:700;font-size:13px;color:var(--text2)">Post-Valve Pressure</div>
+            <div style="font-size:10.5px;color:var(--text3)">HP Turbine Inlet (after HPCV)</div>
+          </div>
+        </div>
+        <div style="font-size:11.5px;color:var(--text3);line-height:1.6">
+          ไม่มีใน PI Historian<br>
+          ต้องดึงจาก offline DB แยกต่างหาก<br>
+          <span class="badge badge-gray" style="margin-top:4px">Verification pending</span>
+        </div>
+      </div>
+      <!-- Note -->
+      <div style="background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:14px 16px;display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">หมายเหตุ</div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.6">
+          * HP FW Inlet Flow ลดลงใน B2 แต่เกิดจาก <em>drum swell effect</em> (HP Drum Press ลด → ระดับน้ำบวม → controller ลด FW flow)<br>
+          ไม่ใช่สาเหตุหลักของ HR ที่แย่ลง
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 4: EVIDENCE 1 — THROTTLE ΔP ========== -->
+<div class="slide" id="s3">
+  <div class="slide-title">
+    <span>Evidence 1 · HP Throttle ΔP B2 กระโดดขึ้น +0.12 MPa หลัง Outage</span>
+    <span class="slide-tag tag-evidence">Evidence 1 / 4</span>
+  </div>
+  <div class="slide-body" style="flex-direction:row;gap:20px;padding-top:18px">
+    <!-- Chart -->
+    <div style="flex:1;position:relative">
+      <div class="legend">
+        <span><span class="ldot" style="background:var(--blue)"></span>HP Throttle ΔP — B1</span>
+        <span><span class="ldot" style="background:var(--red)"></span>HP Throttle ΔP — B2</span>
+        <span style="color:var(--text3);font-size:10.5px">= HP Main Steam Press − HP STEAM PRESS (piping drop, before HPCV)</span>
+      </div>
+      <div class="chart-wrap" style="height:calc(100% - 28px)">
+        <canvas id="c-tdp"></canvas>
+      </div>
+    </div>
+    <!-- Analysis table -->
+    <div style="width:280px;display:flex;flex-direction:column;gap:12px;padding-top:28px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border)">
+            <th style="text-align:left;padding:6px 8px;font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">Period</th>
+            <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">B1 avg</th>
+            <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">B2 avg</th>
+            <th style="text-align:right;padding:6px 8px;font-size:10px;color:var(--text3);font-weight:600;text-transform:uppercase">B2−B1</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;font-weight:600">Jan–Mar '26<br><span style="font-size:10px;color:var(--text3)">Pre-Outage</span></td>
+            <td style="text-align:right;padding:8px;color:var(--blue)">−0.517</td>
+            <td style="text-align:right;padding:8px;color:var(--red)">−0.497</td>
+            <td style="text-align:right;padding:8px;color:var(--green);font-weight:700">+0.020</td>
+          </tr>
+          <tr style="border-bottom:1px solid var(--border)">
+            <td style="padding:8px;font-weight:600">Apr–May '26<br><span style="font-size:10px;color:var(--red)">Post-Outage</span></td>
+            <td style="text-align:right;padding:8px;color:var(--blue)">−0.545</td>
+            <td style="text-align:right;padding:8px;color:var(--red)">−0.600</td>
+            <td style="text-align:right;padding:8px;color:var(--red);font-weight:700">−0.055</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;font-weight:700;color:var(--text)">DiD</td>
+            <td style="text-align:right;padding:8px;color:var(--text2)">−0.028</td>
+            <td style="text-align:right;padding:8px;color:var(--red)">−0.103</td>
+            <td style="text-align:right;padding:8px;background:rgba(248,81,73,.1);border-radius:4px;color:var(--red);font-weight:800">−0.075</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="font-size:10.5px;color:var(--text3)">Unit: MPa</div>
+      <div class="stat-box" style="border-color:rgba(248,81,73,.35)">
+        <div class="stat-label">การแปลผล</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-top:4px">
+          ก่อน Outage: B2 <em>มี ΔP น้อยกว่า</em> B1<br>
+          → B2 วาล์วเปิดมากกว่า B1 เล็กน้อย (ปกติ)<br><br>
+          หลัง Outage: B2 <em>มี ΔP มากกว่า</em> B1<br>
+          → B2 วาล์ว<strong style="color:var(--red)">ถูก Restrict มากขึ้น</strong><br>
+          → เป็น B2-specific change ที่เกิดขึ้นหลัง Outage
+        </div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">ข้อจำกัด</div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.6;margin-top:4px">
+          จุดวัดทั้งหมด<strong>ก่อน</strong> HPCV/HPSV<br>
+          Pressure drop จริงข้ามวาล์วต้องดึง<br>
+          จากฐานข้อมูล offline เพิ่มเติม
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footnote">
+    <span>ΔP = HP Main Steam Press (col 21) − HP STEAM PRESSURE (col 60) — measured at HRSG outlet / main steam header</span>
+    <span>More negative = larger pressure drop = more restriction in steam path</span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 5: EVIDENCE 2 — THROTTLE LOSS % ========== -->
+<div class="slide" id="s4">
+  <div class="slide-title">
+    <span>Evidence 2 · Throttle Loss % — Normalized Signal ชัดกว่า Absolute ΔP</span>
+    <span class="slide-tag tag-evidence">Evidence 2 / 4</span>
+  </div>
+  <div class="slide-body" style="flex-direction:row;gap:20px;padding-top:18px">
+    <div style="flex:1;position:relative">
+      <div class="legend">
+        <span><span class="ldot" style="background:var(--blue)"></span>Throttle Loss % — B1</span>
+        <span><span class="ldot" style="background:var(--red)"></span>Throttle Loss % — B2</span>
+        <span style="color:var(--text3);font-size:10.5px">= |ΔP| ÷ HP Main Steam Press × 100%</span>
+      </div>
+      <div class="chart-wrap" style="height:calc(100% - 28px)">
+        <canvas id="c-tpct"></canvas>
+      </div>
+    </div>
+    <div style="width:280px;display:flex;flex-direction:column;gap:12px;padding-top:28px">
+      <div class="stat-box">
+        <div class="stat-label">ทำไมต้อง Normalize?</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-top:4px">
+          เมื่อโหลดสูงขึ้น HP Steam Press จะสูงขึ้นตาม → ΔP ก็เพิ่มตาม (<em>ปกติ</em>)<br><br>
+          Throttle Loss % กำจัด effect ของโหลดออก ทำให้เห็นการเปลี่ยนแปลงที่แท้จริงของ <strong style="color:var(--orange)">valve restriction</strong>
+        </div>
+      </div>
+      <div class="stat-box" style="border-color:rgba(248,81,73,.35)">
+        <div class="stat-label">สรุปผล</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+          <div style="text-align:center;padding:8px;background:rgba(88,166,255,.07);border-radius:8px">
+            <div style="font-size:10px;color:var(--text3)">B1 Pre</div>
+            <div style="font-size:18px;font-weight:700;color:var(--blue)">3.40%</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:rgba(248,81,73,.07);border-radius:8px">
+            <div style="font-size:10px;color:var(--text3)">B2 Pre</div>
+            <div style="font-size:18px;font-weight:700;color:var(--red)">3.28%</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:rgba(88,166,255,.07);border-radius:8px">
+            <div style="font-size:10px;color:var(--text3)">B1 Post</div>
+            <div style="font-size:18px;font-weight:700;color:var(--blue)">3.47%</div>
+          </div>
+          <div style="text-align:center;padding:8px;background:rgba(248,81,73,.15);border:1px solid rgba(248,81,73,.4);border-radius:8px">
+            <div style="font-size:10px;color:var(--red)">B2 Post</div>
+            <div style="font-size:24px;font-weight:800;color:var(--red)">3.86%</div>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-size:10.5px;color:var(--text3)">DiD B2−B1</div>
+            <div style="font-size:26px;font-weight:800;color:var(--red)">+0.49%</div>
+          </div>
+          <div style="font-size:11px;color:var(--text2);max-width:120px;line-height:1.6">
+            B2 เพิ่ม 7× มากกว่า B1 หลัง Outage
+          </div>
+        </div>
+      </div>
+      <div style="background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.2);border-radius:10px;padding:12px 14px">
+        <div style="font-size:11px;font-weight:700;color:var(--blue);margin-bottom:6px">ข้อดีของ Metric นี้</div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.6">
+          ✓ ไม่ขึ้นกับ load level<br>
+          ✓ เปรียบเทียบ pre/post ได้โดยตรง<br>
+          ✓ เปรียบเทียบ B1 vs B2 ได้โดยตรง<br>
+          ✓ ไม่ต้องการข้อมูล post-valve
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footnote">
+    <span>Throttle Loss % = |HP Main Steam Press − HP STEAM PRESSURE| ÷ HP Main Steam Press × 100%</span>
+    <span>ค่าสูง = HP steam สูญเสียพลังงานเป็นความร้อนที่วาล์วมากขึ้น (irreversible throttling loss)</span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 6: EVIDENCE 3 — SUPPLY PRESSURE ========== -->
+<div class="slide" id="s5">
+  <div class="slide-title">
+    <span>Evidence 3 · HP Supply Pressure B2 ต่ำกว่า B1 — Dual Contributing Factors</span>
+    <span class="slide-tag tag-evidence">Evidence 3 / 4</span>
+  </div>
+  <div class="slide-body" style="flex-direction:row;gap:20px;padding-top:18px">
+    <div style="flex:1;position:relative">
+      <div class="legend">
+        <span><span class="ldot" style="background:var(--blue)"></span>HP Main Steam Press — B1 (before HPCV)</span>
+        <span><span class="ldot" style="background:var(--red)"></span>HP Main Steam Press — B2 (before HPCV)</span>
+      </div>
+      <div class="chart-wrap" style="height:calc(100% - 28px)">
+        <canvas id="c-hppress"></canvas>
+      </div>
+    </div>
+    <div style="width:280px;display:flex;flex-direction:column;gap:12px;padding-top:28px">
+      <div class="stat-box">
+        <div class="stat-label">B2−B1 Pressure Difference</div>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+          <div>
+            <div style="font-size:10px;color:var(--text3)">Pre-Outage</div>
+            <div style="font-size:22px;font-weight:700;color:var(--green)">+0.05</div>
+            <div style="font-size:10px;color:var(--text2)">MPa (B2 สูงกว่า)</div>
+          </div>
+          <div style="font-size:24px;color:var(--text3)">→</div>
+          <div>
+            <div style="font-size:10px;color:var(--text3)">Post-Outage</div>
+            <div style="font-size:22px;font-weight:700;color:var(--red)">−0.19</div>
+            <div style="font-size:10px;color:var(--text2)">MPa (B2 ต่ำกว่า)</div>
+          </div>
+        </div>
+        <div style="margin-top:8px"><span class="badge badge-red">DiD = −0.24 MPa reversal</span></div>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:10px;padding:14px 16px">
+        <div style="font-size:12px;font-weight:700;margin-bottom:10px">สาเหตุที่เป็นไปได้ (Dual Factor)</div>
+        <div style="display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(248,81,73,.15);border:1px solid rgba(248,81,73,.4);display:flex;align-items:center;justify-content:center;color:var(--red);font-weight:800;font-size:12px;flex-shrink:0">1</div>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--red)">HPCV/HPSV Restriction</div>
+              <div style="font-size:11px;color:var(--text2);line-height:1.5;margin-top:2px">Back-pressure สูงขึ้นจาก valve restriction อาจส่งผลต่อ pressure ด้าน supply ด้วย</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="width:28px;height:28px;border-radius:50%;background:rgba(227,135,58,.15);border:1px solid rgba(227,135,58,.4);display:flex;align-items:center;justify-content:center;color:var(--orange);font-weight:800;font-size:12px;flex-shrink:0">2</div>
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--orange)">HP Drum Pressure ต่ำลง</div>
+              <div style="font-size:11px;color:var(--text2);line-height:1.5;margin-top:2px">HP Drum B2 เคยสูงกว่า B1 +0.05 MPa → กลับเป็นต่ำกว่า −0.264 MPa หลัง Outage (ต้องสืบสวนแยก)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">ผลกระทบรวม</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-top:4px">
+          Supply ต่ำ + Valve restrict มากขึ้น<br>
+          → HP Turbine Inlet Press ต่ำกว่า B1<br>
+          → Expansion Ratio ลดลง<br>
+          → Work extracted ต่อ kg ลดลง<br>
+          → <strong style="color:var(--red)">HR ST ↑</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footnote">
+    <span>HP Main Steam Press วัดก่อน Control Valve (HPCV/HPSV) — เป็น supply pressure ให้กับ throttle</span>
+    <span>ค่าสูงขึ้นใน Feb–Mar เนื่องจาก load เพิ่มขึ้นตามฤดูกาล (ปกติ)</span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 7: THEORY ========== -->
+<div class="slide" id="s6">
+  <div class="slide-title">
+    <span>ทฤษฎี · Throttle Loss คืออะไร และทำไมถึงทำให้ HR แย่ลง?</span>
+    <span class="slide-tag tag-theory">Theory</span>
+  </div>
+  <div class="slide-body" style="flex-direction:row;gap:28px;padding-top:20px">
+    <!-- Left: SVG diagram -->
+    <div style="flex:1;display:flex;flex-direction:column;gap:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--text2);margin-bottom:4px">กลไก: Throttle Loss ในวาล์ว</div>
+      <svg viewBox="0 0 400 220" width="100%" style="max-height:200px">
+        <defs>
+          <linearGradient id="pipeGrad" x1="0" x2="1" y1="0" y2="0">
+            <stop offset="0%" stop-color="rgba(88,166,255,.3)"/>
+            <stop offset="45%" stop-color="rgba(88,166,255,.3)"/>
+            <stop offset="55%" stop-color="rgba(248,81,73,.3)"/>
+            <stop offset="100%" stop-color="rgba(248,81,73,.2)"/>
+          </linearGradient>
+        </defs>
+        <!-- Pipe before valve -->
+        <rect x="20" y="90" width="130" height="40" rx="4" fill="rgba(88,166,255,.12)" stroke="rgba(88,166,255,.3)" stroke-width="1.5"/>
+        <!-- Valve symbol -->
+        <rect x="154" y="80" width="50" height="60" rx="6" fill="rgba(248,81,73,.12)" stroke="rgba(248,81,73,.5)" stroke-width="1.5"/>
+        <line x1="154" y1="80" x2="204" y2="140" stroke="rgba(248,81,73,.6)" stroke-width="1.5"/>
+        <line x1="204" y1="80" x2="154" y2="140" stroke="rgba(248,81,73,.6)" stroke-width="1.5"/>
+        <text x="179" y="76" text-anchor="middle" fill="var(--red)" font-size="9" font-weight="700">HPCV</text>
+        <!-- Pipe after valve -->
+        <rect x="208" y="90" width="170" height="40" rx="4" fill="rgba(248,81,73,.1)" stroke="rgba(248,81,73,.2)" stroke-width="1.5"/>
+        <!-- Pressure arrows before -->
+        <text x="85" y="82" text-anchor="middle" fill="var(--blue)" font-size="10" font-weight="600">P₁ (HP Supply)</text>
+        <line x1="85" y1="88" x2="85" y2="92" stroke="var(--blue)" stroke-width="1.5"/>
+        <!-- Pressure bar before: tall -->
+        <rect x="60" y="30" width="50" height="55" rx="3" fill="rgba(88,166,255,.2)" stroke="rgba(88,166,255,.4)" stroke-width="1"/>
+        <text x="85" y="26" text-anchor="middle" fill="var(--blue)" font-size="9">15.5 MPa</text>
+        <!-- Pressure arrow after -->
+        <text x="290" y="82" text-anchor="middle" fill="var(--red)" font-size="10" font-weight="600">P₂ (Turbine Inlet)</text>
+        <line x1="290" y1="88" x2="290" y2="92" stroke="var(--red)" stroke-width="1.5"/>
+        <!-- Pressure bar after: shorter -->
+        <rect x="265" y="50" width="50" height="35" rx="3" fill="rgba(248,81,73,.2)" stroke="rgba(248,81,73,.4)" stroke-width="1"/>
+        <text x="290" y="45" text-anchor="middle" fill="var(--red)" font-size="9">12.3 MPa</text>
+        <!-- ΔP loss label -->
+        <path d="M 110 55 C 130 40 140 38 150 38" stroke="var(--orange)" stroke-width="1" fill="none" stroke-dasharray="3,2"/>
+        <rect x="148" y="28" width="100" height="24" rx="4" fill="rgba(227,135,58,.12)" stroke="rgba(227,135,58,.4)" stroke-width="1"/>
+        <text x="198" y="40" text-anchor="middle" fill="var(--orange)" font-size="9" font-weight="700">ΔP = 3.2 MPa WASTED</text>
+        <text x="198" y="49" text-anchor="middle" fill="rgba(227,135,58,.7)" font-size="8">→ entropy ↑, work potential ↓</text>
+        <!-- HP turbine box -->
+        <rect x="385" y="75" width="10" height="50" rx="2" fill="rgba(88,166,255,.15)" stroke="rgba(88,166,255,.3)" stroke-width="1"/>
+        <text x="392" y="165" text-anchor="middle" fill="var(--text3)" font-size="8" writing-mode="vertical-rl">HP Turbine</text>
+        <!-- CRH pressure note -->
+        <text x="375" y="195" text-anchor="middle" fill="var(--text3)" font-size="8">P_CRH ≈ 3.7 MPa (fixed)</text>
+        <!-- Flow arrows -->
+        <path d="M 150 110 L 154 110" stroke="#8b949e" stroke-width="2" marker-end="url(#arr)"/>
+        <path d="M 204 110 L 208 110" stroke="#8b949e" stroke-width="2"/>
+        <path d="M 378 110 L 385 110" stroke="#8b949e" stroke-width="2" marker-end="url(#arr)"/>
+        <!-- Expansion ratio label -->
+        <text x="200" y="200" text-anchor="middle" fill="var(--text2)" font-size="10">
+          Expansion Ratio = P₂ ÷ P_CRH
+        </text>
+        <text x="200" y="215" text-anchor="middle" fill="var(--text2)" font-size="10">
+          Normal: 12.75 ÷ 3.69 = 3.46   |   Post-Outage: 12.3 ÷ 3.67 = 3.35 (−3.2%)
+        </text>
+      </svg>
+      <!-- Formula boxes -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:rgba(88,166,255,.06);border:1px solid rgba(88,166,255,.2);border-radius:8px;padding:12px">
+          <div style="font-size:10px;font-weight:700;color:var(--blue);margin-bottom:6px">สถานการณ์ปกติ (B1 / B2 Pre)</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.8;font-family:'Courier New',monospace">
+            P₁ = 15.40 MPa<br>
+            ΔP = 0.52 MPa (3.4%)<br>
+            P₂ = 14.88 MPa<br>
+            P_CRH = 3.63 MPa<br>
+            <strong style="color:var(--blue)">Ratio = 14.88 / 3.63 = 4.10</strong>
+          </div>
+        </div>
+        <div style="background:rgba(248,81,73,.06);border:1px solid rgba(248,81,73,.3);border-radius:8px;padding:12px">
+          <div style="font-size:10px;font-weight:700;color:var(--red);margin-bottom:6px">หลัง Outage (B2 Post)</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.8;font-family:'Courier New',monospace">
+            P₁ = 15.33 MPa (↓)<br>
+            ΔP = 0.60 MPa (3.9%) (↑)<br>
+            P₂ ≈ 14.73 MPa (↓↓)<br>
+            P_CRH = 3.67 MPa<br>
+            <strong style="color:var(--red)">Ratio ≈ 4.01 (−2.2%)</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Right: Key insight -->
+    <div style="width:280px;display:flex;flex-direction:column;gap:12px">
+      <div style="font-size:13px;font-weight:600;color:var(--text2)">ทำไม Expansion Ratio ถึงสำคัญ?</div>
+      <div class="stat-box">
+        <div class="stat-label">หลักการ Rankine Cycle</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.8;margin-top:6px">
+          งานที่ Turbine ทำได้ ∝ การขยายตัวของ Steam<br><br>
+          ถ้า P₂ (inlet) ต่ำลง แต่ P_exhaust คงที่:<br>
+          → Steam มีแรงดันน้อยลงในการ "ดัน" turbine<br>
+          → Work ต่อ kg ลดลง แม้ enthalpy คงเดิม
+        </div>
+      </div>
+      <div class="stat-box" style="border-color:rgba(248,81,73,.35)">
+        <div class="stat-label">ความแตกต่างที่สำคัญ</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-top:6px">
+          <strong style="color:var(--orange)">Throttle Loss ≠ Valve Leak</strong><br>
+          ΔP ข้ามวาล์วไม่ได้เป็นรูรั่ว แต่เป็น<br>
+          <em>irreversible pressure drop</em><br>
+          พลังงานถูกแปลงเป็น entropy (ความร้อน + turbulence) ทิ้งเปล่า<br><br>
+          <strong style="color:var(--red)">ผล: ΔP ↑ 0.10 MPa → HR ↑ ~50-80 kJ/kWh</strong>
+        </div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Exergy (Work Potential)</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.7;margin-top:6px">
+          Steam ที่ P ต่ำกว่า มี <em>exergy</em> ต่ำกว่า<br>
+          แม้ enthalpy เท่ากัน<br><br>
+          → B2 ได้รับ steam ที่มีพลังงานเท่ากัน แต่มีศักยภาพในการทำงาน (<em>work potential</em>) ต่ำกว่า B1
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footnote">
+    <span>* P₂ (after HPCV) ไม่มีใน PI — ประมาณจาก P₁ − ΔP_measured + pipeline correction</span>
+    <span>ค่า Expansion Ratio ประมาณเท่านั้น เนื่องจากต้องการ actual post-valve pressure ยืนยัน</span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 8: HRH ENERGY SHIFT ========== -->
+<div class="slide" id="s7">
+  <div class="slide-title">
+    <span>Evidence 4 · HRH Energy Shift — พลังงานที่ HP เสียไปส่งผ่านมาที่ IP</span>
+    <span class="slide-tag tag-evidence">Evidence 4 / 4</span>
+  </div>
+  <div class="slide-body" style="flex-direction:row;gap:20px;padding-top:18px">
+    <div style="flex:1;position:relative">
+      <div class="legend">
+        <span><span class="ldot" style="background:var(--blue)"></span>HRH Energy B1 (Flow × Enthalpy)</span>
+        <span><span class="ldot" style="background:var(--red)"></span>HRH Energy B2</span>
+        <span style="color:var(--text3);font-size:10.5px">Unit: GJ/h</span>
+      </div>
+      <div class="chart-wrap" style="height:calc(100% - 28px)">
+        <canvas id="c-hrhe"></canvas>
+      </div>
+    </div>
+    <div style="width:290px;display:flex;flex-direction:column;gap:12px;padding-top:28px">
+      <div class="stat-box" style="border-color:rgba(163,113,247,.4)">
+        <div class="stat-label">HRH Energy: B2 − B1 Shift</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:8px">
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--text3)">Pre-Outage</div>
+            <div style="font-size:20px;font-weight:700;color:var(--green)">−3,000</div>
+            <div style="font-size:10px;color:var(--text2)">kJ/h (B2 ต่ำกว่า)</div>
+          </div>
+          <div style="font-size:22px;color:var(--text3)">→</div>
+          <div style="text-align:center">
+            <div style="font-size:10px;color:var(--text3)">Post-Outage</div>
+            <div style="font-size:20px;font-weight:700;color:var(--red)">+10,000</div>
+            <div style="font-size:10px;color:var(--text2)">kJ/h (B2 สูงกว่า)</div>
+          </div>
+        </div>
+      </div>
+      <!-- Energy cascade diagram -->
+      <div style="border:1px solid var(--border);border-radius:10px;padding:14px;font-size:12px">
+        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:10px">Energy Flow Cascade</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:80px;text-align:right;font-size:10.5px;color:var(--text3)">HP stage</div>
+            <div style="flex:1;height:24px;background:rgba(248,81,73,.15);border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:10px;color:var(--red);border:1px solid rgba(248,81,73,.3)">Work ↓ −1.6 kJ/kg</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:80px;text-align:right;font-size:10.5px;color:var(--text3)">→ CRH</div>
+            <div style="flex:1;height:24px;background:rgba(163,113,247,.1);border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:10px;color:var(--purple);border:1px solid rgba(163,113,247,.3)">Enthalpy retained ↑ (passes through)</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:80px;text-align:right;font-size:10.5px;color:var(--text3)">→ Reheater</div>
+            <div style="flex:1;height:24px;background:rgba(227,135,58,.1);border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:10px;color:var(--orange);border:1px solid rgba(227,135,58,.3)">HRH Energy ↑ +10 MJ/h</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:80px;text-align:right;font-size:10.5px;color:var(--text3)">→ IP stage</div>
+            <div style="flex:1;height:24px;background:rgba(63,185,80,.1);border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:10px;color:var(--green);border:1px solid rgba(63,185,80,.3)">Partial recovery (different ratio)</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="width:80px;text-align:right;font-size:10.5px;color:var(--text3)">Net result</div>
+            <div style="flex:1;height:28px;background:rgba(248,81,73,.2);border-radius:4px;display:flex;align-items:center;padding-left:8px;font-size:11px;color:var(--red);border:1px solid rgba(248,81,73,.4);font-weight:700">ST HR ↑ +71.9 kJ/kWh</div>
+          </div>
+        </div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">ความหมายของ Shift นี้</div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.7;margin-top:4px">
+          ถ้า HP restriction ไม่มีอยู่จริง HRH energy B2 ควรยังอยู่ต่ำกว่า B1 ต่อไป<br><br>
+          การที่ B2 HRH สูงกว่า B1 หลัง Outage คือ <strong style="color:var(--purple)">fingerprint</strong> ของ energy ที่ "ไม่ถูก extract" ที่ HP stage แล้วผ่านมายัง IP stage
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footnote">
+    <span>HRH Energy = HRH Steam Flow (t/h) × h_HRH (kJ/kg) — total enthalpy entering IP turbine from reheater</span>
+    <span>IP stage ดึงพลังงานส่วนนี้ได้บ้าง แต่ไม่สามารถชดเชย HP work ที่หายไปได้ทั้งหมดเนื่องจาก expansion ratio ต่างกัน</span>
+  </div>
+</div>
+
+<!-- ========== SLIDE 9: HYPOTHESIS CHAIN ========== -->
+<div class="slide" id="s8">
+  <div class="slide-title">
+    <span>สรุปข้อสันนิษฐาน · Root Cause Chain — Block 2 Post-Outage</span>
+    <span class="slide-tag tag-finding">Hypothesis Summary</span>
+  </div>
+  <div class="slide-body" style="padding-top:20px;justify-content:center;gap:14px">
+    <!-- Main chain -->
+    <div style="display:flex;align-items:stretch;gap:0;justify-content:center">
+      <!-- Box 1 -->
+      <div style="text-align:center;width:160px">
+        <div style="background:rgba(248,81,73,.12);border:1.5px solid rgba(248,81,73,.5);border-radius:10px;padding:14px 10px">
+          <div style="font-size:18px;margin-bottom:6px">🔧</div>
+          <div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:4px">HPCV / HPSV</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.5">Mechanical<br>Restriction</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:6px">(Hypothesis)<br>Commanded 100%<br>แต่ Cv ลดลง</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;color:var(--red);font-size:20px;padding:0 6px">→</div>
+      <!-- Box 2 -->
+      <div style="text-align:center;width:155px">
+        <div style="background:rgba(248,81,73,.1);border:1.5px solid rgba(248,81,73,.4);border-radius:10px;padding:14px 10px">
+          <div style="font-size:15px;font-weight:800;color:var(--red);margin-bottom:4px">ΔP ↑↑</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">HP Throttle Loss</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.5">−0.60 MPa (B2)<br>vs −0.55 MPa (B1)</div>
+          <div style="font-size:10px;margin-top:6px" class="badge badge-red">DiD −0.07 MPa ✓</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;color:var(--red);font-size:20px;padding:0 6px">→</div>
+      <!-- Box 3 -->
+      <div style="text-align:center;width:155px">
+        <div style="background:rgba(227,135,58,.1);border:1.5px solid rgba(227,135,58,.4);border-radius:10px;padding:14px 10px">
+          <div style="font-size:15px;font-weight:800;color:var(--orange);margin-bottom:4px">P_inlet ↓</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">HP Turbine Inlet</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.5">ต่ำกว่า B1<br>≈ −0.24 MPa (est.)</div>
+          <div style="font-size:10px;margin-top:6px" class="badge badge-orange">Supply + Valve</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;color:var(--orange);font-size:20px;padding:0 6px">→</div>
+      <!-- Box 4 -->
+      <div style="text-align:center;width:155px">
+        <div style="background:rgba(163,113,247,.1);border:1.5px solid rgba(163,113,247,.4);border-radius:10px;padding:14px 10px">
+          <div style="font-size:15px;font-weight:800;color:var(--purple);margin-bottom:4px">Ratio ↓</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">Expansion Ratio</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.5">4.10 → ~4.01<br>(−2.2% est.)</div>
+          <div style="font-size:10px;margin-top:6px" class="badge" style="background:rgba(163,113,247,.12);color:var(--purple)">Less work per kg</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;color:var(--purple);font-size:20px;padding:0 6px">→</div>
+      <!-- Box 5 -->
+      <div style="text-align:center;width:155px">
+        <div style="background:rgba(248,81,73,.15);border:2px solid rgba(248,81,73,.6);border-radius:10px;padding:14px 10px">
+          <div style="font-size:15px;font-weight:800;color:var(--red);margin-bottom:4px">HR ↑↑</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px">ST Heat Rate</div>
+          <div style="font-size:11px;color:var(--text2);line-height:1.5">B2 +71.9 kJ/kWh<br>vs B1 (DiD)</div>
+          <div style="font-size:10px;margin-top:6px" class="badge badge-red">OBSERVED ✓</div>
+        </div>
+      </div>
+    </div>
+    <!-- Contributing factor below -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px">
+      <div style="font-size:11px;color:var(--text3)">Contributing Factor:</div>
+      <div style="background:rgba(227,135,58,.08);border:1px solid rgba(227,135,58,.3);border-radius:8px;padding:8px 16px;font-size:12px;color:var(--orange)">
+        HP Drum Pressure ต่ำลง −0.264 MPa relative to B1 → Supply Pressure ลดลงด้วย (ต้องสืบสวนแยก)
+      </div>
+    </div>
+    <!-- Summary confidence -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:4px">
+      <div style="background:rgba(63,185,80,.07);border:1px solid rgba(63,185,80,.25);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--green);margin-bottom:8px">✅ ยืนยันได้จาก PI</div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.7">
+          • ST HR B2 diverge +71.9 kJ/kWh<br>
+          • HP Throttle ΔP +0.12 MPa (B2)<br>
+          • Throttle Loss % +0.49% (B2)<br>
+          • HP Supply Press −0.19 MPa<br>
+          • HRH Energy shift reversal
+        </div>
+      </div>
+      <div style="background:rgba(227,135,58,.07);border:1px solid rgba(227,135,58,.25);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--orange);margin-bottom:8px">⚠ ประมาณจาก Analysis</div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.7">
+          • HP Turbine Inlet Pressure<br>
+            (ต้องการ post-valve sensor)<br>
+          • Expansion Ratio change<br>
+          • Enthalpy drop at HP stage<br>
+          • Valve Cv actual change
+        </div>
+      </div>
+      <div style="background:rgba(248,81,73,.07);border:1px solid rgba(248,81,73,.25);border-radius:10px;padding:14px">
+        <div style="font-size:11px;font-weight:700;color:var(--red);margin-bottom:8px">❓ ยังต้องยืนยัน</div>
+        <div style="font-size:11.5px;color:var(--text2);line-height:1.7">
+          • Mechanical root cause<br>
+            ของ HPCV/HPSV restriction<br>
+          • HP Drum Pressure reduction<br>
+            (separate investigation)<br>
+          • Post-valve pressure data
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== SLIDE 10: NEXT STEPS ========== -->
+<div class="slide" id="s9">
+  <div class="slide-title">
+    <span>การตรวจสอบเพิ่มเติมที่แนะนำ — Next Steps</span>
+    <span class="slide-tag tag-action">Recommendations</span>
+  </div>
+  <div class="slide-body" style="padding-top:20px;gap:14px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;flex:1">
+      <!-- Action 1 -->
+      <div style="border:1px solid rgba(88,166,255,.3);border-radius:12px;padding:20px;background:rgba(88,166,255,.04)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="width:36px;height:36px;border-radius:50%;background:rgba(88,166,255,.15);border:1.5px solid rgba(88,166,255,.4);display:flex;align-items:center;justify-content:center;color:var(--blue);font-weight:800;font-size:14px;flex-shrink:0">1</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--blue)">Post-HPCV Pressure Data</div>
+            <div style="font-size:11px;color:var(--text3)">Priority: HIGH · ต้องการ offline database</div>
+          </div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text2);line-height:1.7">
+          ดึงข้อมูล Pressure หลัง HPCV/HPSV จากฐานข้อมูล offline เพื่อยืนยัน:<br>
+          • ΔP จริงข้าม valve B2 vs B1<br>
+          • HP Turbine Inlet Pressure trend post-outage<br>
+          • คำนวณ Valve Cv จริง = Q/√(ΔP) เปรียบเทียบ pre/post
+        </div>
+        <div style="margin-top:10px"><span class="badge badge-blue">ยืนยัน/ปฏิเสธ Hypothesis ได้ทันที</span></div>
+      </div>
+      <!-- Action 2 -->
+      <div style="border:1px solid rgba(248,81,73,.3);border-radius:12px;padding:20px;background:rgba(248,81,73,.04)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="width:36px;height:36px;border-radius:50%;background:rgba(248,81,73,.15);border:1.5px solid rgba(248,81,73,.4);display:flex;align-items:center;justify-content:center;color:var(--red);font-weight:800;font-size:14px;flex-shrink:0">2</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--red)">Physical Valve Inspection</div>
+            <div style="font-size:11px;color:var(--text3)">Priority: HIGH · ทำได้ใน Outage ครั้งถัดไป</div>
+          </div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text2);line-height:1.7">
+          ตรวจสอบ HPCV/HPSV ทาง mechanical:<br>
+          • Valve stem / seat wear pattern<br>
+          • Valve disk deformation หรือ deposit<br>
+          • Packing / gland leakage ที่ส่งผล stroke<br>
+          • Actuator calibration vs actual opening
+        </div>
+        <div style="margin-top:10px"><span class="badge badge-red">ยืนยัน Mechanical Root Cause</span></div>
+      </div>
+      <!-- Action 3 -->
+      <div style="border:1px solid rgba(227,135,58,.3);border-radius:12px;padding:20px;background:rgba(227,135,58,.04)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="width:36px;height:36px;border-radius:50%;background:rgba(227,135,58,.15);border:1.5px solid rgba(227,135,58,.4);display:flex;align-items:center;justify-content:center;color:var(--orange);font-weight:800;font-size:14px;flex-shrink:0">3</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--orange)">HP Drum Pressure Investigation</div>
+            <div style="font-size:11px;color:var(--text3)">Priority: MEDIUM · อาจมีสาเหตุแยกต่างหาก</div>
+          </div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text2);line-height:1.7">
+          HP Drum B2 ต่ำกว่า B1 มากขึ้น −0.264 MPa post-outage:<br>
+          • ตรวจสอบ HP Drum Pressure Control setpoint<br>
+          • HP Drum Safety Valve ตั้งค่าถูกต้องไหม<br>
+          • HRSG HP section fouling / scaling<br>
+          • HP Attemperator water injection เพิ่มขึ้นไหม
+        </div>
+        <div style="margin-top:10px"><span class="badge badge-orange">Contributing Factor ที่ต้องแยกออก</span></div>
+      </div>
+      <!-- Action 4 -->
+      <div style="border:1px solid rgba(63,185,80,.3);border-radius:12px;padding:20px;background:rgba(63,185,80,.04)">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+          <div style="width:36px;height:36px;border-radius:50%;background:rgba(63,185,80,.15);border:1.5px solid rgba(63,185,80,.4);display:flex;align-items:center;justify-content:center;color:var(--green);font-weight:800;font-size:14px;flex-shrink:0">4</div>
+          <div>
+            <div style="font-size:14px;font-weight:700;color:var(--green)">Continuous Monitoring Dashboard</div>
+            <div style="font-size:11px;color:var(--text3)">Priority: ONGOING · ติดตามต่อเนื่อง</div>
+          </div>
+        </div>
+        <div style="font-size:12.5px;color:var(--text2);line-height:1.7">
+          ติดตาม KPI เหล่านี้ต่อเนื่องทุกเดือน:<br>
+          • HP Throttle Loss % (threshold: B2 &gt; B1 + 0.3%)<br>
+          • HP Throttle ΔP (alert: B2 &gt; −0.58 MPa)<br>
+          • ST HR DiD (alert: &gt; +50 kJ/kWh)<br>
+          • HRH Energy B2 vs B1 trend
+        </div>
+        <div style="margin-top:10px"><span class="badge badge-green">Early Warning สำหรับ Outage Planning</span></div>
+      </div>
+    </div>
+    <!-- Bottom disclaimer -->
+    <div style="background:rgba(139,148,158,.05);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-size:11px;color:var(--text3);line-height:1.6">
+      <strong style="color:var(--text2)">ข้อสันนิษฐานนี้อยู่บนพื้นฐาน:</strong> การวิเคราะห์ข้อมูล PI Historian ระดับ Monthly Median · Filter GROSS MW 690–720 MW · Difference-in-Differences Method (B2 vs B1) · Aug 2025 – May 2026 · Run-B only<br>
+      ต้องยืนยันด้วยข้อมูล post-valve pressure และการตรวจสอบ physical ก่อนสรุปผลอย่างเป็นทางการ
+    </div>
+  </div>
+</div>
+
+<!-- ── SLIDE 10: HP Inlet Pressure + Expansion Ratio (Offline Data) ─── -->
+<div class="slide" id="s10">
+  <div class="slide-title">
+    <span>HP Turbine Inlet Press & Expansion Ratio — ข้อมูล Offline จริง</span>
+    <span class="slide-tag tag-finding">New Evidence</span>
+  </div>
+  <div class="slide-body" style="flex-direction:column;gap:14px;padding-top:16px">
+    <div style="font-size:12px;color:#8b949e;background:rgba(88,166,255,0.05);border:1px solid rgba(88,166,255,0.15);border-radius:8px;padding:10px 14px;">
+      ข้อมูลจากฐานข้อมูล Offline (GTC9 ~200GB) — วัดความดันหลัง HP Control Valve โดยตรง (MAA00CP101-103) และคำนวณ HP Expansion Ratio = P_inlet / P_exhaust
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex:1">
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:6px;font-weight:600;">HP TURBINE INLET PRESSURE (After HPCV) — MPa</div>
+        <div style="height:200px;position:relative"><canvas id="c-hpinlet"></canvas></div>
+        <div style="font-size:11px;color:#8b949e;margin-top:6px;">Post-Outage DiD = −0.137 MPa (B2 ต่ำกว่า B1 มากขึ้น)</div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#8b949e;margin-bottom:6px;font-weight:600;">HP EXPANSION RATIO = HP_Inlet / HP_Exhaust</div>
+        <div style="height:200px;position:relative"><canvas id="c-expratio"></canvas></div>
+        <div style="font-size:11px;color:#f85149;margin-top:6px;">Post-Outage B2: 4.199 vs B1: 4.245 → Gap widened to −0.046</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+      <div style="background:rgba(30,35,44,0.8);border:1px solid #21262d;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px;">Pre-Outage DiD (Expansion Ratio)</div>
+        <div style="font-size:20px;font-weight:700;color:#f85149;">−0.022</div>
+        <div style="font-size:10px;color:#8b949e;">B2 ต่ำกว่า B1 อยู่แล้วก่อน Outage</div>
+      </div>
+      <div style="background:rgba(30,35,44,0.8);border:1px solid rgba(248,81,73,0.4);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:#f85149;margin-bottom:4px;">Post-Outage DiD (Expansion Ratio)</div>
+        <div style="font-size:20px;font-weight:700;color:#f85149;">−0.046</div>
+        <div style="font-size:10px;color:#f85149;">Gap กว้างขึ้น หลัง Outage → HP section ทำงานน้อยลง</div>
+      </div>
+      <div style="background:rgba(30,35,44,0.8);border:1px solid #21262d;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px;">Throttle dP% DiD (pre→post)</div>
+        <div style="font-size:20px;font-weight:700;color:#3fb950;">−0.006%</div>
+        <div style="font-size:10px;color:#3fb950;">Throttle loss ไม่แย่ลงหลัง Outage</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── SLIDE 11: Full 17-Month Timeline ─────────────────────────── -->
+<div class="slide" id="s11">
+  <div class="slide-title">
+    <span>Timeline ที่แท้จริง — B2 HP Throttle Loss % เริ่มสูงขึ้นตั้งแต่ กรกฎาคม 2568</span>
+    <span class="slide-tag tag-finding">Timeline</span>
+  </div>
+  <div class="slide-body" style="flex-direction:column;gap:16px;padding-top:16px">
+    <div style="height:300px;position:relative"><canvas id="c-timeline"></canvas></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px">
+      <div style="background:rgba(30,35,44,0.8);border:1px solid #21262d;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px;">Jan–Jun 2025</div>
+        <div style="font-size:16px;font-weight:700;color:#3fb950;">B1 ≈ B2</div>
+        <div style="font-size:10px;color:#8b949e;">DiD ≤ 0.010%</div>
+      </div>
+      <div style="background:rgba(30,35,44,0.8);border:1px solid rgba(248,81,73,0.4);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:#f85149;margin-bottom:4px;">Jul–Oct 2025</div>
+        <div style="font-size:16px;font-weight:700;color:#f85149;">B2 เพิ่มขึ้น</div>
+        <div style="font-size:10px;color:#f85149;">DiD พุ่งถึง +0.047%</div>
+      </div>
+      <div style="background:rgba(30,35,44,0.8);border:1px solid #21262d;border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:#8b949e;margin-bottom:4px;">Jan–Mar 2026</div>
+        <div style="font-size:16px;font-weight:700;color:#e3873a;">คงที่</div>
+        <div style="font-size:10px;color:#8b949e;">DiD ≈ +0.026%</div>
+      </div>
+      <div style="background:rgba(30,35,44,0.8);border:1px solid rgba(63,185,80,0.3);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:11px;color:#3fb950;margin-bottom:4px;">May 2026 (Post-Outage)</div>
+        <div style="font-size:16px;font-weight:700;color:#3fb950;">ลดลงเล็กน้อย</div>
+        <div style="font-size:10px;color:#3fb950;">DiD = +0.020% (ดีขึ้น)</div>
+      </div>
+    </div>
+    <div style="font-size:12px;background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.2);border-radius:8px;padding:12px;color:#e6edf3;">
+      <b style="color:#f85149;">สรุปสำคัญ:</b> HP Throttle Restriction เริ่มเกิดขึ้นตั้งแต่ <b>กรกฎาคม 2568</b> (9 เดือนก่อน Outage) 
+      → เป็น Chronic Degradation ไม่ใช่ปัญหาที่เกิดจาก Outage April 2569 
+      → หลัง Outage DiD ลดลงเล็กน้อย (+0.047% → +0.020%) บ่งบอกว่า Outage อาจช่วยปรับปรุงได้บ้าง
+      แต่ยังไม่สมบูรณ์ — ควรตรวจสอบสภาพ HP Control Valve และ Steam Strainer
+    </div>
+  </div>
+</div>
+
+
+</div><!-- end deck -->
+
+<!-- NAV BAR -->
+<div class="nav">
+  <button class="nav-btn" onclick="go(-1)">&#8592;</button>
+  <div class="nav-dots" id="dots"></div>
+  <button class="nav-btn" onclick="go(1)">&#8594;</button>
+  <div class="slide-counter" id="counter">1 / 10</div>
+</div>
+
+<script>
+// ── DATA ────────────────────────────────────────────────────────
+const months = ['Aug 25','Sep 25','Oct 25','Nov 25','Dec 25','Jan 26','Feb 26','Mar 26','Apr 26','May 26'];
+const D = {
+  // ST Heat Rate (kcal/kWh) — from PI 15-min data
+  sthr:    {b1:[9194,9201,9198,9190,9155,9160,9110,9115,9101,9114], b2:[9169,9176,9183,9185,9157,9149,9098,9103,null,9161]},
+  // HP Throttle ΔP absolute (MPa) — Offline GTC9 actual post-valve measurement
+  tdp:     {b1:[0.0835, 0.0829, 0.083, 0.0828, 0.0833, 0.0824, 0.087, 0.0862, 0.09, 0.0894], b2:[0.0881, 0.089, 0.0901, 0.0892, 0.0876, 0.0865, 0.091, 0.0896, 0.0923, 0.092]},
+  // HP Throttle Loss % = |ΔP|/HP_Main×100 — Offline GTC9 ACTUAL (replaces estimates)
+  tpct:    {b1:[0.5637,0.5601,0.5582,0.5557,0.5590,0.5591,0.5618,0.5637,0.5700,0.5707], b2:[0.5924,0.6014,0.6043,0.5992,0.5909,0.5870,0.5891,0.5865,0.5944,0.5910]},
+  // HP Main Steam Press (MPa) before valve — Offline GTC9
+  hppress: {b1:[14.807,14.809,14.868,14.766,14.891,14.723,15.420,15.386,15.763,15.648], b2:[14.861,14.845,14.904,14.796,14.828,14.684,15.392,15.324,null,15.554]},
+  // HP Turbine Inlet Press (MPa) after valve — Offline GTC9 KEY NEW DATA
+  hpinlet: {b1:[14.720,14.718,14.786,14.814,14.824,14.660,15.401,15.210,15.705,15.568], b2:[14.785,14.719,14.812,14.806,14.738,14.653,15.363,15.186,15.432,15.468]},
+  // HP Expansion Ratio = HP_Inlet/HP_Exhaust — KEY NEW FINDING
+  expratio:{b1:[4.2130,4.2116,4.2135,4.2148,4.2137,4.2100,4.2288,4.2402,4.2509,4.2403], b2:[4.2142,4.2151,4.2147,4.2031,4.1939,4.1898,4.2057,4.2118,4.1981,4.1993]},
+  // HRH Energy (GJ/h) — from PI
+  hrhe:    {b1:[1.651,1.652,1.655,1.648,1.653,1.641,1.705,1.696,1.726,1.718], b2:[1.643,1.642,1.650,1.647,1.649,1.637,1.702,1.692,null,1.728]},
+  // Full Throttle dP% timeline (Jan 2025 – May 2026, 17 months) — for timeline slide
+  tpct_full:{
+    months:['Jan 25','Feb 25','Mar 25','Apr 25','May 25','Jun 25','Jul 25','Aug 25','Sep 25','Oct 25','Nov 25','Dec 25','Jan 26','Feb 26','Mar 26','Apr 26','May 26'],
+    b1:[0.5564,0.5507,0.5526,0.5543,null,0.5715,0.5674,0.5637,0.5601,0.5582,0.5557,0.5590,0.5591,0.5618,0.5637,0.5700,0.5707],
+    b2:[0.5572,0.5604,0.5618,0.5593,0.5569,0.5662,0.5821,0.5924,0.6014,0.6043,0.5992,0.5909,0.5870,0.5891,0.5865,0.5944,0.5910]
+  },
+};
+
+// ── SLIDE SYSTEM ─────────────────────────────────────────────────
+const slides = document.querySelectorAll('.slide');
+const total = slides.length;
+let current = 0;
+const inited = {};
+
+function buildDots() {
+  const c = document.getElementById('dots');
+  for(let i=0;i<total;i++){
+    const d = document.createElement('div');
+    d.className = 'dot' + (i===0?' active':'');
+    d.onclick = ()=>goTo(i);
+    c.appendChild(d);
+  }
+}
+
+function goTo(n) {
+  if(n<0||n>=total||n===current) return;
+  slides[current].classList.remove('active');
+  slides[current].classList.add('exit');
+  setTimeout(()=>slides[current>n?current:current].classList.remove('exit'),360);
+  const prev = current;
+  current = n;
+  slides[current].classList.add('active');
+  setTimeout(()=>slides[prev].classList.remove('exit'),360);
+  document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===current));
+  document.getElementById('counter').textContent = (current+1)+' / '+total;
+  if(!inited[current]){ inited[current]=true; initSlide(current); }
+}
+function go(d){ goTo(current+d); }
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowRight'||e.key==='ArrowDown') go(1);
+  if(e.key==='ArrowLeft'||e.key==='ArrowUp') go(-1);
+});
+
+// ── CHART HELPERS ─────────────────────────────────────────────────
+const BLUE='#58a6ff',RED='#f85149',GREEN='#3fb950',ORANGE='#e3873a',PURPLE='#a371f7';
+const GRID='rgba(33,38,45,1)', TICK='#8b949e';
+
+const outage = {
+  outageBox:{type:'box',xMin:7.4,xMax:9.6,
+    backgroundColor:'rgba(248,81,73,.06)',borderColor:'rgba(248,81,73,.25)',borderWidth:1,
+    label:{display:true,content:'B2 CI+ Outage',position:{x:'center',y:'start'},
+      color:'rgba(248,81,73,.75)',font:{size:9,weight:'600'},yAdjust:8}},
+  b1stop:{type:'line',xMin:8.0,xMax:8.0,
+    borderColor:'rgba(88,166,255,.3)',borderWidth:1,borderDash:[4,3],
+    label:{display:true,content:'B1 Stop FGC-A',position:'start',
+      color:'rgba(88,166,255,.5)',font:{size:8},yAdjust:14}}
+};
+
+function lineDS(label, data, color, dashed=false) {
+  return {
+    label, data, borderColor:color, backgroundColor:'transparent',
+    borderWidth:2, pointRadius:3, pointHoverRadius:5,
+    borderDash: dashed?[5,3]:[],
+    spanGaps: false,
+    tension:0.3
+  };
+}
+
+function makeChart(id, datasets, yLabel, yMin, yMax, extra={}, customLabels=null) {
+  const ctx = document.getElementById(id);
+  if(!ctx) return;
+  return new Chart(ctx, {
+    type:'line',
+    data:{ labels: customLabels||months, datasets },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      animation:{duration:600},
+      plugins:{
+        legend:{display:false},
+        annotation:{annotations:{...outage,...extra}}
+      },
+      scales:{
+        x:{grid:{color:GRID},ticks:{color:TICK,font:{size:10.5}}},
+        y:{
+          grid:{color:GRID},ticks:{color:TICK,font:{size:10.5}},
+          title:{display:!!yLabel,text:yLabel,color:TICK,font:{size:10}},
+          min:yMin, max:yMax,
+        }
+      }
+    }
+  });
+}
+
+// ── ANNOTATION LABELS (Chart.js label annotations) ────────────────
+function addLabel(id, xVal, yVal, text, color, xAdj=0, yAdj=-20) {
+  return {
+    type:'label', xValue:xVal, yValue:yVal,
+    content:text.split('\n'),
+    color, font:{size:9.5, weight:'600'},
+    backgroundColor:'rgba(10,14,22,.85)',
+    borderColor:color, borderWidth:1, borderRadius:5,
+    padding:{x:7,y:5},
+    xAdjust:xAdj, yAdjust:yAdj
+  };
+}
+
+// ── SLIDE INITIALIZERS ─────────────────────────────────────────────
+function initSlide(n) {
+  if(n===1) { // ST HR
+    makeChart('c-sthr',
+      [lineDS('B1',D.sthr.b1,BLUE), lineDS('B2',D.sthr.b2,RED)],
+      'kJ/kWh', 9060, 9240,
+      {
+        annPre:addLabel('',2.5,9185,'B1 ≈ B2\n(ก่อน Outage)','#8b949e',0,-22),
+        annPost:addLabel('',8.5,9145,'B2 สูงกว่า B1\n≈ +55 kJ/kWh',RED,18,-20),
+        preAvgB1:{type:'line',xMin:-0.5,xMax:6.5,yMin:9130,yMax:9130,
+          borderColor:'rgba(88,166,255,.25)',borderWidth:1.5,borderDash:[4,3]},
+        preAvgB2:{type:'line',xMin:-0.5,xMax:6.5,yMin:9110,yMax:9110,
+          borderColor:'rgba(248,81,73,.25)',borderWidth:1.5,borderDash:[4,3]},
+      }
+    );
+  }
+  if(n===3) { // Throttle ΔP — actual values from Offline GTC9
+    makeChart('c-tdp',
+      [lineDS('B1',D.tdp.b1,BLUE), lineDS('B2',D.tdp.b2,RED)],
+      'MPa (pressure drop across HPCV)', 0.078, 0.096,
+      {
+        annB2:{type:'label',xValue:8.5,yValue:0.091,
+          content:['B2: 0.091 MPa'],color:RED,font:{size:10,weight:'700'},
+          backgroundColor:'rgba(248,81,73,.12)',borderColor:RED,borderWidth:1,borderRadius:5,
+          padding:{x:6,y:4},xAdjust:0,yAdjust:-18},
+        annB1:{type:'label',xValue:8.5,yValue:0.088,
+          content:['B1: 0.088 MPa'],color:BLUE,font:{size:10,weight:'600'},
+          backgroundColor:'rgba(88,166,255,.1)',borderColor:BLUE,borderWidth:1,borderRadius:5,
+          padding:{x:6,y:4},xAdjust:0,yAdjust:18},
+        diffLabel:{type:'label',xValue:9.3,yValue:0.0895,
+          content:['Δ 0.003\nMPa'],color:ORANGE,font:{size:9,weight:'700'},
+          backgroundColor:'rgba(227,135,58,.12)',borderColor:ORANGE,borderWidth:1,borderRadius:4,
+          padding:{x:5,y:3},xAdjust:40,yAdjust:0},
+      }
+    );
+  }
+  if(n===4) { // Throttle % — ACTUAL offline data, B2 chronic since Jul 2025
+    makeChart('c-tpct',
+      [lineDS('B1',D.tpct.b1,BLUE), lineDS('B2',D.tpct.b2,RED)],
+      '%', 0.545, 0.620,
+      {
+        annB2pre:{type:'label',xValue:4,yValue:0.588,
+          content:['B2 pre: 0.588%\n(Jan-Mar avg)'],color:RED,font:{size:9.5,weight:'600'},
+          backgroundColor:'rgba(248,81,73,.1)',borderColor:RED,borderWidth:1,borderRadius:4,
+          padding:{x:5,y:3},yAdjust:-16},
+        annB2post:{type:'label',xValue:8.5,yValue:0.591,
+          content:['B2 post: 0.593%\n(Apr-May avg)'],color:RED,font:{size:10,weight:'700'},
+          backgroundColor:'rgba(248,81,73,.15)',borderColor:RED,borderWidth:1.5,borderRadius:5,
+          padding:{x:7,y:5},yAdjust:-20},
+        annB1:{type:'label',xValue:8.5,yValue:0.571,
+          content:['B1: 0.571%'],color:BLUE,font:{size:9.5,weight:'600'},
+          backgroundColor:'rgba(88,166,255,.1)',borderColor:BLUE,borderWidth:1,borderRadius:4,
+          padding:{x:5,y:3},yAdjust:16},
+        gapLine:{type:'line',xMin:-0.5,xMax:9.5,yMin:0.575,yMax:0.575,
+          borderColor:'rgba(248,81,73,.2)',borderWidth:1,borderDash:[6,4]},
+        didLabel:{type:'label',xValue:4.5,yValue:0.560,
+          content:['DiD = −0.006%\n(Outage ไม่ทำให้แย่ลง)'],color:GREEN,
+          font:{size:9,weight:'600'},backgroundColor:'rgba(63,185,80,.1)',
+          borderColor:GREEN,borderWidth:1,borderRadius:4,padding:{x:5,y:3},yAdjust:0},
+      }
+    );
+  }
+  if(n===5) { // HP Supply Press
+    makeChart('c-hppress',
+      [lineDS('B1',D.hppress.b1,BLUE), lineDS('B2',D.hppress.b2,RED)],
+      'MPa', 14.5, 16.0,
+      {
+        annPre:{type:'label',xValue:3,yValue:14.82,
+          content:['B1 ≈ B2\n(pre-outage)'],'color':'#8b949e',font:{size:9.5,weight:'600'},
+          backgroundColor:'rgba(10,14,22,.85)',borderColor:'#30363d',borderWidth:1,borderRadius:4,
+          padding:{x:6,y:4},yAdjust:-22},
+        annPost:{type:'label',xValue:8.5,yValue:15.55,
+          content:['B2 ต่ำกว่า B1\n−0.19 MPa'],color:RED,font:{size:10,weight:'700'},
+          backgroundColor:'rgba(248,81,73,.12)',borderColor:RED,borderWidth:1,borderRadius:5,
+          padding:{x:7,y:5},yAdjust:-26},
+        diffLine:{type:'line',xMin:9.2,xMax:9.2,yMin:15.54,yMax:15.66,
+          borderColor:'rgba(248,81,73,.5)',borderWidth:2},
+      }
+    );
+  }
+  if(n===10) { // HP Inlet Pressure + Expansion Ratio — new slide s10
+    makeChart('c-hpinlet',
+      [lineDS('B1',D.hpinlet.b1,BLUE), lineDS('B2',D.hpinlet.b2,RED)],
+      'MPa (after HPCV)', 14.5, 16.0,
+      {
+        annPost:{type:'label',xValue:8.5,yValue:15.46,
+          content:['B2: 15.46 MPa\n(−0.10 vs B1)'],color:RED,font:{size:10,weight:'700'},
+          backgroundColor:'rgba(248,81,73,.12)',borderColor:RED,borderWidth:1,borderRadius:5,
+          padding:{x:7,y:5},yAdjust:-26},
+      }
+    );
+    makeChart('c-expratio',
+      [lineDS('B1',D.expratio.b1,BLUE), lineDS('B2',D.expratio.b2,RED)],
+      'ratio (HP Inlet P / HP Exhaust P)', 4.18, 4.26,
+      {
+        annPre:{type:'label',xValue:3,yValue:4.212,
+          content:['Pre: B1 ≈ B2'],color:'#8b949e',font:{size:9.5,weight:'600'},
+          backgroundColor:'rgba(10,14,22,.85)',borderColor:'#30363d',borderWidth:1,borderRadius:4,
+          padding:{x:5,y:3},yAdjust:-18},
+        annPost:{type:'label',xValue:8.5,yValue:4.199,
+          content:['Post: B2 −0.042\nvs B1 4.240'],color:RED,font:{size:10,weight:'700'},
+          backgroundColor:'rgba(248,81,73,.15)',borderColor:RED,borderWidth:1.5,borderRadius:5,
+          padding:{x:7,y:5},yAdjust:-26},
+        gapLine:{type:'line',xMin:7.5,xMax:9.5,yMin:4.240,yMax:4.240,
+          borderColor:'rgba(88,166,255,.3)',borderWidth:1.5,borderDash:[5,3]},
+      }
+    );
+  }
+  if(n===11) { // Full 17-month timeline
+    makeChart('c-timeline',
+      [lineDS('B1',D.tpct_full.b1,BLUE), lineDS('B2',D.tpct_full.b2,RED)],
+      '%', 0.545, 0.620,
+      {
+        diverge:{type:'line',xMin:6,xMax:6,yMin:0.545,yMax:0.620,
+          borderColor:'rgba(248,81,73,.6)',borderWidth:2,borderDash:[5,3]},
+        annDiverge:{type:'label',xValue:6,yValue:0.610,
+          content:['Jul 2025\nB2 เริ่มแยก'],color:RED,font:{size:10,weight:'700'},
+          backgroundColor:'rgba(248,81,73,.15)',borderColor:RED,borderWidth:1.5,borderRadius:5,
+          padding:{x:6,y:4},xAdjust:30,yAdjust:0},
+        annPeak:{type:'label',xValue:9,yValue:0.605,
+          content:['Peak Oct 25\n+0.047%'],color:ORANGE,font:{size:9.5,weight:'700'},
+          backgroundColor:'rgba(227,135,58,.12)',borderColor:ORANGE,borderWidth:1,borderRadius:4,
+          padding:{x:5,y:3},xAdjust:0,yAdjust:-22},
+        annOutage:{type:'line',xMin:15,xMax:15,yMin:0.545,yMax:0.620,
+          borderColor:'rgba(163,113,247,.5)',borderWidth:1.5,borderDash:[4,3]},
+        annOutageLbl:{type:'label',xValue:15,yValue:0.615,
+          content:['Apr 26\nOutage'],color:PURPLE,font:{size:9,weight:'600'},
+          backgroundColor:'rgba(163,113,247,.1)',borderColor:PURPLE,borderWidth:1,borderRadius:4,
+          padding:{x:5,y:3},xAdjust:28,yAdjust:0},
+        annPost:{type:'label',xValue:16,yValue:0.591,
+          content:['May 26: 0.591%\n(Pre: 0.587%)'],color:RED,font:{size:9.5,weight:'600'},
+          backgroundColor:'rgba(248,81,73,.1)',borderColor:RED,borderWidth:1,borderRadius:4,
+          padding:{x:5,y:3},xAdjust:0,yAdjust:18},
+        didLabel:{type:'label',xValue:16,yValue:0.560,
+          content:['DiD = −0.006%\nChromic, not outage-caused'],color:GREEN,
+          font:{size:9,weight:'600'},backgroundColor:'rgba(63,185,80,.1)',
+          borderColor:GREEN,borderWidth:1,borderRadius:4,padding:{x:5,y:3},yAdjust:0},
+      },
+      D.tpct_full.months  // custom x-axis labels
+    );
+  }
+  if(n===7) { // HRH Energy
+    makeChart('c-hrhe',
+      [lineDS('B1',D.hrhe.b1,BLUE), lineDS('B2',D.hrhe.b2,RED)],
+      'GJ/h', 1.62, 1.74,
+      {
+        annPre:{type:'label',xValue:3,yValue:1.648,
+          content:['B2 ต่ำกว่า B1\n~3,000 kJ/h'],'color':'#3fb950',font:{size:9.5,weight:'600'},
+          backgroundColor:'rgba(63,185,80,.08)',borderColor:'rgba(63,185,80,.4)',borderWidth:1,borderRadius:4,
+          padding:{x:6,y:4},yAdjust:-22},
+        annPost:{type:'label',xValue:8.5,yValue:1.728,
+          content:['B2 สูงกว่า B1\n+10,000 kJ/h'],color:ORANGE,font:{size:10,weight:'700'},
+          backgroundColor:'rgba(227,135,58,.1)',borderColor:ORANGE,borderWidth:1,borderRadius:5,
+          padding:{x:7,y:5},yAdjust:-26},
+        midLine:{type:'line',xMin:7.5,xMax:7.5,
+          borderColor:'rgba(163,113,247,.4)',borderWidth:1.5,borderDash:[5,3]},
+        reversal:{type:'label',xValue:7.5,yValue:1.713,
+          content:['Reversal point'],color:PURPLE,font:{size:9,weight:'600'},
+          backgroundColor:'rgba(163,113,247,.1)',borderColor:PURPLE,borderWidth:1,borderRadius:4,
+          padding:{x:5,y:3},xAdjust:38,yAdjust:0},
+      }
+    );
+  }
+}
+
+// Init slide 0 (cover) - no charts
+inited[0] = true;
+buildDots();
+</script>
+</body>
+</html>

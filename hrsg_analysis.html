@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="th" data-lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HRSG Analysis — HKP Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js" onerror="console.warn('Annotation plugin failed to load')"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#1c2128;
+    --border:#21262d; --border2:#30363d;
+    --text:#e6edf3; --text2:#8b949e; --text3:#484f58;
+    --blue:#58a6ff; --green:#3fb950; --red:#f85149;
+    --yellow:#d29922; --orange:#e3873a; --purple:#a371f7;
+    --accent:#1f6feb;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'Sarabun','Inter',sans-serif; margin:0; overflow-x:hidden; }
+  .sidebar { width:220px; min-height:100vh; background:var(--surface); border-right:1px solid var(--border); position:fixed; left:0; top:0; display:flex; flex-direction:column; z-index:100; }
+  .sidebar-logo { padding:20px 18px 16px; border-bottom:1px solid var(--border); }
+  .plant-name { font-size:13px; font-weight:700; color:var(--blue); letter-spacing:1px; text-transform:uppercase; }
+  .sub-name { font-size:11px; color:var(--text2); margin-top:2px; }
+  .nav-section-label { font-size:10px; font-weight:600; color:var(--text3); letter-spacing:1.5px; text-transform:uppercase; padding:16px 18px 6px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:9px 18px; margin:1px 8px; border-radius:6px; cursor:pointer; font-size:13.5px; color:var(--text2); transition:all 0.15s; text-decoration:none; }
+  .nav-item:hover { background:var(--border); color:var(--text); }
+  .nav-item.active { background:#1f3a5f; color:var(--blue); font-weight:600; }
+  .topbar { margin-left:220px; height:56px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; position:sticky; top:0; z-index:50; }
+  .page-title { font-size:15px; font-weight:600; }
+  .page-subtitle { font-size:12px; color:var(--text2); margin-top:1px; }
+  .main-content { margin-left:220px; padding:16px 20px; min-height:calc(100vh - 56px); }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .card-title { font-size:12px; font-weight:600; color:var(--text2); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:12px; }
+  .kpi-value { font-size:26px; font-weight:700; line-height:1.1; }
+  .kpi-unit { font-size:12px; color:var(--text2); margin-left:4px; font-weight:400; }
+  .kpi-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .kpi-badge.good { background:rgba(63,185,80,0.12); color:var(--green); }
+  .kpi-badge.neutral { background:rgba(139,148,158,0.12); color:var(--text2); }
+  .lang-toggle { display:flex; align-items:center; background:var(--border); border-radius:20px; padding:3px; gap:2px; }
+  .lang-btn { padding:4px 12px; border-radius:16px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; color:var(--text2); border:none; background:transparent; }
+  .lang-btn.active { background:var(--blue); color:var(--bg); }
+  .chart-container { position:relative; width:100%; height:220px; }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+  /* Flow diagram */
+  .flow-box { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:110px; padding:10px 14px; border-radius:10px; gap:3px; }
+  .flow-arrow { width:36px; height:2px; position:relative; flex-shrink:0; }
+  .flow-arrow::after { content:''; position:absolute; right:-5px; top:-4px; border-left:7px solid currentColor; border-top:4px solid transparent; border-bottom:4px solid transparent; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1f6feb,#58a6ff);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+      </div>
+      <div>
+        <div class="plant-name">HKP Power Plant</div>
+        <div class="sub-name">Plant Performance Monitoring</div>
+      </div>
+    </div>
+  </div>
+  <nav style="flex:1;padding:8px 0;">
+    <div class="nav-section-label">OVERVIEW</div>
+    <a class="nav-item" href="index.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span>Overview</span>
+    </a>
+    <div class="nav-section-label">EQUIPMENT</div>
+    <a class="nav-item" href="gt_prototype.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg> Gas Turbine</a>
+    <a class="nav-item" href="st_analysis.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> Steam Turbine</a>
+    <a class="nav-item active" href="hrsg_analysis.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> HRSG</a>
+    <div class="nav-section-label" style="margin-top:8px;">REPORTS</div>
+    <a class="nav-item" href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Daily Report</a>
+  </nav>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="page-title" data-th="วิเคราะห์ HRSG — B1 vs B2" data-en="HRSG Analysis — B1 vs B2">HRSG Analysis — B1 vs B2</div>
+    <div class="page-subtitle" data-th="ประสิทธิภาพ HRSG, FGH Energy, และ Flue Gas" data-en="HRSG Efficiency, FGH Energy, and Flue Gas Analysis">HRSG Efficiency, FGH Energy, and Flue Gas Analysis</div>
+  </div>
+  <div class="lang-toggle">
+    <button class="lang-btn" onclick="setLang('th')" id="btn-th">TH</button>
+    <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+
+  <!-- HRSG Flow Diagram -->
+  <div class="card" style="margin-bottom:14px;padding:16px 20px;">
+    <div class="card-title" data-th="แผนผัง HRSG Energy Flow" data-en="HRSG Energy Flow Diagram">HRSG Energy Flow Diagram</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:0;padding:10px 0;overflow-x:auto;">
+      <div class="flow-box" style="background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.3);">
+        <div style="font-size:10px;font-weight:700;color:var(--yellow);">GT Exhaust</div>
+        <div style="font-size:14px;font-weight:700;" id="flow-exhaust">646 °C</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(210,153,34,0.5),rgba(210,153,34,0.8));color:rgba(210,153,34,0.8);"></div>
+      <div class="flow-box" style="background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.25);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--red);">HP SH</div>
+        <div style="font-size:12px;font-weight:700;" id="flow-hp-sh">15.5 MPa</div>
+        <div style="font-size:10px;color:var(--text2);" id="flow-hp-temp">568 °C</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(210,153,34,0.4),rgba(88,166,255,0.6));color:rgba(88,166,255,0.6);"></div>
+      <div class="flow-box" style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--blue);">IP RH</div>
+        <div style="font-size:12px;font-weight:700;" id="flow-ip">3.40 MPa</div>
+        <div style="font-size:10px;color:var(--text2);" id="flow-hrh-temp">556 °C</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(88,166,255,0.4),rgba(63,185,80,0.6));color:rgba(63,185,80,0.6);"></div>
+      <div class="flow-box" style="background:rgba(63,185,80,0.06);border:1px solid rgba(63,185,80,0.25);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--green);">LP EVP</div>
+        <div style="font-size:12px;font-weight:700;" id="flow-lp">0.46 MPa</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(63,185,80,0.4),rgba(163,113,247,0.6));color:rgba(163,113,247,0.6);"></div>
+      <div class="flow-box" style="background:rgba(163,113,247,0.06);border:1px solid rgba(163,113,247,0.25);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--purple);">FGH</div>
+        <div style="font-size:12px;font-weight:700;" id="flow-fgh">3-stage</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(163,113,247,0.4),rgba(139,148,158,0.5));color:rgba(139,148,158,0.5);"></div>
+      <div class="flow-box" style="background:rgba(139,148,158,0.06);border:1px solid rgba(139,148,158,0.2);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);">Stack</div>
+        <div style="font-size:14px;font-weight:700;" id="flow-stack">90 °C</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title">B1 HRSG Efficiency</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--blue);" id="kpi-b1-eff">90.2</span>
+        <span class="kpi-unit">%</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge good">Normal</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">B2 HRSG Efficiency</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--green);" id="kpi-b2-eff">90.4</span>
+        <span class="kpi-unit">%</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge good">Normal</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="B1 Stack Temp" data-en="B1 Stack Temp">B1 Stack Temp</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--text2);" id="kpi-b1-stack">90.6</span>
+        <span class="kpi-unit">°C</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge neutral">Normal</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="B2 Stack Temp" data-en="B2 Stack Temp">B2 Stack Temp</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--text2);" id="kpi-b2-stack">89.2</span>
+        <span class="kpi-unit">°C</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge good" data-th="B2 ต่ำกว่า (ดีกว่า)" data-en="B2 lower (better)">B2 lower (better)</span></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 1: HRSG Efficiency + Stack Temp -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HRSG Efficiency — Monthly" data-en="HRSG Efficiency — Monthly">HRSG Efficiency — Monthly</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--green);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-hrsg-eff" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="Stack Temperature" data-en="Stack Temperature">Stack Temperature</div>
+      <div class="chart-container"><canvas id="chart-stack" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2: GT Exhaust + Ambient -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="GT Exhaust Gas Temperature" data-en="GT Exhaust Gas Temperature">GT Exhaust Gas Temperature</div>
+      <div class="chart-container"><canvas id="chart-exhaust" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="Ambient Temperature" data-en="Ambient Temperature">Ambient Temperature</div>
+      <div class="chart-container"><canvas id="chart-ambient" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 3: HP Drum + O2 -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Drum Pressure" data-en="HP Drum Pressure">HP Drum Pressure</div>
+      <div class="chart-container"><canvas id="chart-hp-drum" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="Flue Gas O2 Content" data-en="Flue Gas O2 Content">Flue Gas O2 Content</div>
+      <div class="chart-container"><canvas id="chart-o2" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 4: FGH Energy -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="FGH 3rd Stage Energy Differential" data-en="FGH 3rd Stage Energy Differential">FGH 3rd Stage Energy Differential</div>
+      <div class="chart-container"><canvas id="chart-fgh3" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="FGH 1st+2nd Stage Energy Differential" data-en="FGH 1st+2nd Stage Energy Differential">FGH 1st+2nd Stage Energy Differential</div>
+      <div class="chart-container"><canvas id="chart-fgh12" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="card" style="margin-bottom:14px;border-left:3px solid var(--green);">
+    <div class="card-title" data-th="สรุป HRSG" data-en="HRSG Summary">HRSG Summary</div>
+    <div style="font-size:13px;line-height:1.7;">
+      <p data-th="HRSG ทั้ง Block 1 และ Block 2 ทำงานปกติ ประสิทธิภาพ ~90% ใกล้เคียงกัน ไม่มีสัญญาณเสื่อมสภาพ"
+         data-en="Both Block 1 and Block 2 HRSGs are operating normally at ~90% efficiency with no signs of degradation.">
+        Both Block 1 and Block 2 HRSGs are operating normally at ~90% efficiency with no signs of degradation.
+      </p>
+      <ul style="margin-top:8px;padding-left:20px;color:var(--text2);">
+        <li data-th="B2 Stack Temp ต่ำกว่า B1 (~1-3°C) — ดีกว่าเล็กน้อย" data-en="B2 Stack Temp lower than B1 (~1-3°C) — slightly better heat recovery">B2 Stack Temp lower than B1 (~1-3°C) — slightly better heat recovery</li>
+        <li data-th="Flue Gas O2 ใกล้เคียงกัน — combustion ปกติ" data-en="Flue Gas O2 similar between blocks — combustion normal">Flue Gas O2 similar between blocks — combustion normal</li>
+        <li data-th="FGH 3rd Stage: B2 energy gap เพิ่มหลัง Outage (+457 Apr) — ตรวจสอบเพิ่มเติม" data-en="FGH 3rd Stage: B2 energy gap increased post-outage (+457 Apr) — monitor further">FGH 3rd Stage: B2 energy gap increased post-outage (+457 Apr) — monitor further</li>
+        <li style="color:var(--green);font-weight:600;" data-th="HRSG ไม่ใช่สาเหตุของ ST Heat Rate degradation" data-en="HRSG is NOT the cause of ST Heat Rate degradation">HRSG is NOT the cause of ST Heat Rate degradation</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="text-align:center;font-size:11px;color:var(--text3);padding:12px 0;">
+    HKP HRSG Analysis · Live data from PI Historian · Filter: Gross MW > 400
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<script>
+let currentLang = 'en';
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('btn-th').classList.toggle('active', lang === 'th');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.querySelectorAll('[data-th][data-en]').forEach(el => {
+    el.textContent = el.getAttribute('data-' + lang);
+  });
+}
+
+Chart.defaults.color = '#8b949e';
+Chart.defaults.font.family = "'Sarabun','Inter',sans-serif";
+Chart.defaults.font.size = 11;
+
+const BLUE = '#58a6ff', GREEN = '#3fb950', RED = '#f85149', YELLOW = '#d29922', PURPLE = '#a371f7';
+const GRID = '#21262d', BORDER = '#30363d';
+
+const outageAnnotation = {
+  type:'box', xMin:7.5, xMax:8.5,
+  backgroundColor:'rgba(248,81,73,0.06)', borderColor:'rgba(248,81,73,0.3)',
+  borderWidth:1, borderDash:[4,4],
+  label:{display:true,content:'Outage',position:'start',color:RED,font:{size:10,weight:600}}
+};
+
+function makeChart(id, labels, datasets, yUnit, extraAnnotations) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return null;
+  const hasAnnotation = typeof Chart.registry !== 'undefined' &&
+    Chart.registry.plugins && Chart.registry.plugins.get('annotation');
+  const annotations = { outage: outageAnnotation, ...(extraAnnotations||{}) };
+  const pluginOpts = {
+    legend:{display:false},
+    tooltip:{backgroundColor:'#21262d',borderColor:BORDER,borderWidth:1,titleColor:'#e6edf3',bodyColor:'#8b949e',
+      callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y?.toLocaleString(undefined,{maximumFractionDigits:2})} ${yUnit}`}}
+  };
+  if (hasAnnotation) pluginOpts.annotation = {annotations};
+  return new Chart(canvas.getContext('2d'), {
+    type:'line',
+    data:{labels,datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins: pluginOpts,
+      scales:{
+        x:{grid:{color:GRID},border:{color:BORDER}},
+        y:{grid:{color:GRID},border:{color:BORDER},ticks:{callback:v=>v.toLocaleString()}}
+      }
+    }
+  });
+}
+
+function ds(label, data, color) {
+  return {label, data, borderColor:color, backgroundColor:color+'18', borderWidth:2, pointRadius:3, pointHoverRadius:5, pointBackgroundColor:color, tension:0.3, fill:false};
+}
+
+// Inline data (works with file:// protocol)
+const DATA = {"meta":{"generated_at":"2026-05-19T10:00:00+07:00","source_file":"Block 1 & 2 Heat Rate Analysis Complete.xlsx","analysis_version":"2.0","filter":"GROSS POWER > 400 MW"},"kpi":{"heat_rate":{"value":6171.1,"target":6150,"unit":"kJ/kWh","change_pct":-0.02},"output_mw":{"value":1422.3,"unit":"MW"},"energy_gwh":{"value":656.9,"unit":"GWh"},"fuel_mmscfd":{"value":6.1,"unit":"MMSCFD"}},"blocks":{"B1_GT":{"status":"running","output_mw":477.7,"heat_rate":8680.0,"load_pct":94.8},"B1_ST":{"status":"running","output_mw":232.6,"heat_rate":9114.0,"load_pct":94.5},"B2_GT":{"status":"running","output_mw":477.9,"heat_rate":8676.0,"load_pct":94.8},"B2_ST":{"status":"derate","output_mw":233.7,"heat_rate":9161.0,"load_pct":95.0}},"st_analysis":{"months":["2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05"],"st_hr_pi":{"b1":[9194.72,9200.86,9197.51,9189.84,9155.49,9159.76,9110.49,9115.08,9100.83,9114.28],"b2":[9168.65,9175.9,9182.58,9185.04,9156.72,9148.73,9098.04,9103.04,9164.19,9161.32]},"st_hr_calc":{"b1":[9213.02,9224.82,9213.24,9198.88,9165.76,9160.16,9148.52,9157.64,9167.47,9176.45],"b2":[9128.84,9145.23,9152.57,9163.82,9114.54,9111.2,9094.12,9106.08,9185.15,9188.47]},"heat_rate_st":{"b1":[9122.78,9149.23,9129.85,9107.84,9006.77,8994.82,8885.09,8914.03,8836.41,8873.97],"b2":[9108.67,9143.41,9132.21,9151.3,9025.33,9007.15,8881.53,8916.88,8937.6,8924.44]},"condenser_vacuum":{"b1":[7.26,7.43,7.44,7.03,6.75,6.32,7.23,7.31,7.85,7.86],"b2":[7.4,7.55,7.58,7.39,6.88,6.38,7.37,7.45,7.87,7.9]},"hp_inlet_press":{"b1":[14.72,14.73,14.78,14.68,14.8,14.64,15.34,15.3,15.67,15.56],"b2":[14.77,14.76,14.81,14.71,14.74,14.59,15.31,15.23,15.42,15.44]},"hp_main_press":{"b1":[14.81,14.82,14.87,14.77,14.89,14.73,15.44,15.4,15.77,15.66],"b2":[14.87,14.86,14.91,14.8,14.84,14.68,15.41,15.33,15.52,15.54]},"hp_throttle_dp":{"b1":[-0.51,-0.51,-0.51,-0.5,-0.51,-0.5,-0.52,-0.53,-0.55,-0.54],"b2":[-0.48,-0.48,-0.49,-0.48,-0.49,-0.48,-0.5,-0.51,-0.6,-0.6]},"st_mw":{"b1":[222.87,222.69,223.44,222.43,224.25,222.56,231.55,230.46,233.88,232.56],"b2":[224.24,223.76,224.49,223.31,225.24,223.54,232.96,231.52,233.68,233.72]},"gt_mw":{"b1":[455.52,454.86,456.51,455.83,460.62,460.26,478.52,472.55,478.38,477.72],"b2":[456.07,454.96,456.45,457.45,459.65,460.75,479.06,472.79,478.13,477.93]},"gross_mw":{"b1":[679.14,677.99,680.26,679.0,684.04,682.24,710.51,703.15,712.64,710.37],"b2":[680.75,679.17,681.28,680.99,684.17,683.74,712.43,704.57,712.11,711.89]},"hp_main_temp":{"b1":[570.1,569.63,568.97,568.8,566.53,565.34,566.68,568.32,569.75,567.7],"b2":[571.76,571.64,571.0,569.08,567.53,565.8,566.99,567.9,568.35,568.11]},"hrh_temp":{"b1":[556.77,556.31,555.99,555.92,553.71,552.48,554.46,556.09,557.84,555.72],"b2":[558.02,557.88,557.65,555.86,554.48,552.81,554.64,555.58,556.16,555.78]},"enthalpy_diff_hp_crh":{"b1":[394.04,393.46,392.47,392.44,389.98,388.93,389.51,390.97,391.6,389.7],"b2":[394.11,393.81,393.62,391.97,390.14,388.29,388.6,389.14,389.97,389.27]},"cv_flow":{"b1":[155.2,155.34,155.6,155.06,158.02,157.01,161.4,160.52,162.14,162.04],"b2":[154.37,154.03,154.54,155.67,156.42,155.88,160.11,159.29,160.42,160.55]},"heat_rate_compensate":{"b1":[6188.71,6201.55,6200.53,6209.4,6170.07,6167.87,6162.98,6164.3,6144.04,6145.64],"b2":[6198.47,6209.39,6207.47,6213.8,6201.97,6195.79,6184.83,6187.08,6172.33,6171.08]},"heat_rate_margin":{"b1":[6.06,-2.27,-12.91,13.94,-19.24,-15.56,-25.42,-22.96,-9.23,-13.4],"b2":[-37.43,-43.72,-48.66,-50.54,-52.41,-41.71,-50.44,-48.59,-39.68,-39.97]},"gt_hr":{"b1":[8698.23,8692.38,8690.01,8680.23,8633.17,8609.29,8634.48,8654.5,8677.95,8680.27],"b2":[8671.29,8671.87,8668.26,8658.26,8655.88,8622.51,8647.12,8677.55,8663.44,8676.05]}},"st_weekly":{"STEAM_TURBINE_HEAT_RATE":{"b1":{"2026-02-23/2026-03-01":9096.89,"2026-03-02/2026-03-08":9137.15,"2026-03-09/2026-03-15":9154.03,"2026-03-16/2026-03-22":9113.12,"2026-03-23/2026-03-29":9094.93,"2026-03-30/2026-04-05":9090.04,"2026-04-06/2026-04-12":9088.36,"2026-04-13/2026-04-19":9108.44,"2026-04-20/2026-04-26":9108.23,"2026-04-27/2026-05-03":9113.27,"2026-05-04/2026-05-10":9109.95,"2026-05-11/2026-05-17":9123.76,"2026-05-18/2026-05-24":9086.34},"b2":{"2026-02-23/2026-03-01":9087.72,"2026-03-02/2026-03-08":9124.18,"2026-03-09/2026-03-15":9140.36,"2026-03-16/2026-03-22":9100.65,"2026-03-23/2026-03-29":9085.76,"2026-03-30/2026-04-05":9084.51,"2026-04-13/2026-04-19":9090.9,"2026-04-20/2026-04-26":9168.17,"2026-04-27/2026-05-03":9159.7,"2026-05-04/2026-05-10":9155.48,"2026-05-11/2026-05-17":9172.36,"2026-05-18/2026-05-24":9145.98}},"Diff_HP_Main_Steam_Pressure":{"b1":{"2026-02-23/2026-03-01":-0.53,"2026-03-02/2026-03-08":-0.52,"2026-03-09/2026-03-15":-0.51,"2026-03-16/2026-03-22":-0.53,"2026-03-23/2026-03-29":-0.54,"2026-03-30/2026-04-05":-0.54,"2026-04-06/2026-04-12":-0.55,"2026-04-13/2026-04-19":-0.55,"2026-04-20/2026-04-26":-0.55,"2026-04-27/2026-05-03":-0.54,"2026-05-04/2026-05-10":-0.55,"2026-05-11/2026-05-17":-0.53,"2026-05-18/2026-05-24":-0.53},"b2":{"2026-02-23/2026-03-01":-0.52,"2026-03-02/2026-03-08":-0.51,"2026-03-09/2026-03-15":-0.49,"2026-03-16/2026-03-22":-0.51,"2026-03-23/2026-03-29":-0.52,"2026-03-30/2026-04-05":-0.52,"2026-04-13/2026-04-19":-0.64,"2026-04-20/2026-04-26":-0.6,"2026-04-27/2026-05-03":-0.61,"2026-05-04/2026-05-10":-0.61,"2026-05-11/2026-05-17":-0.6,"2026-05-18/2026-05-24":-0.6}},"HP_TURBINE_INLET_STEAM_PRESS":{"b1":{"2026-02-23/2026-03-01":15.55,"2026-03-02/2026-03-08":14.97,"2026-03-09/2026-03-15":14.86,"2026-03-16/2026-03-22":15.41,"2026-03-23/2026-03-29":15.62,"2026-03-30/2026-04-05":15.7,"2026-04-06/2026-04-12":15.7,"2026-04-13/2026-04-19":15.67,"2026-04-20/2026-04-26":15.67,"2026-04-27/2026-05-03":15.52,"2026-05-04/2026-05-10":15.62,"2026-05-11/2026-05-17":15.46,"2026-05-18/2026-05-24":15.43},"b2":{"2026-02-23/2026-03-01":15.54,"2026-03-02/2026-03-08":14.93,"2026-03-09/2026-03-15":14.79,"2026-03-16/2026-03-22":15.34,"2026-03-23/2026-03-29":15.55,"2026-03-30/2026-04-05":15.51,"2026-04-13/2026-04-19":15.73,"2026-04-20/2026-04-26":15.42,"2026-04-27/2026-05-03":15.42,"2026-05-04/2026-05-10":15.51,"2026-05-11/2026-05-17":15.37,"2026-05-18/2026-05-24":15.41}},"CONDENSER_VACUUM_PRESS":{"b1":{"2026-02-23/2026-03-01":7.37,"2026-03-02/2026-03-08":7.09,"2026-03-09/2026-03-15":7.04,"2026-03-16/2026-03-22":7.42,"2026-03-23/2026-03-29":7.75,"2026-03-30/2026-04-05":7.84,"2026-04-06/2026-04-12":7.71,"2026-04-13/2026-04-19":7.86,"2026-04-20/2026-04-26":7.99,"2026-04-27/2026-05-03":7.79,"2026-05-04/2026-05-10":7.97,"2026-05-11/2026-05-17":7.79,"2026-05-18/2026-05-24":7.65},"b2":{"2026-02-23/2026-03-01":7.5,"2026-03-02/2026-03-08":7.25,"2026-03-09/2026-03-15":7.14,"2026-03-16/2026-03-22":7.56,"2026-03-23/2026-03-29":7.88,"2026-03-30/2026-04-05":7.74,"2026-04-13/2026-04-19":8.15,"2026-04-20/2026-04-26":7.93,"2026-04-27/2026-05-03":7.79,"2026-05-04/2026-05-10":7.99,"2026-05-11/2026-05-17":7.87,"2026-05-18/2026-05-24":7.83}}},"hrsg_analysis":{"months":["2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05"],"stack_temp":{"b1":[91.89,91.98,91.94,90.96,90.68,90.41,91.39,91.34,90.53,90.57],"b2":[88.08,88.11,88.26,88.56,87.48,87.14,88.09,88.28,88.74,89.2]},"gt_exhaust_temp":{"b1":[641.13,640.89,641.49,640.93,638.9,635.98,642.75,645.04,650.46,646.55],"b2":[645.53,645.22,645.94,643.44,641.55,638.28,644.51,645.9,646.69,646.28]},"ambient_temp":{"b1":[29.09,27.74,27.99,26.57,26.61,25.21,27.9,29.05,30.35,30.25],"b2":[29.12,27.42,27.89,26.58,26.52,25.06,27.76,28.91,30.5,30.24]},"hp_steam_press":{"b1":[15.33,15.33,15.38,15.28,15.4,15.22,15.96,15.93,16.32,16.2],"b2":[15.35,15.33,15.4,15.28,15.32,15.17,15.92,15.85,16.13,16.14]},"hp_drum_press":{"b1":[16.23,16.23,16.28,16.16,16.31,16.12,16.84,16.85,17.21,17.09],"b2":[16.28,16.27,16.34,16.22,16.26,16.1,16.87,16.79,16.95,16.96]},"ip_drum_press":{"b1":[3.52,3.52,3.53,3.51,3.53,3.5,3.65,3.63,3.7,3.68],"b2":[3.53,3.53,3.54,3.53,3.54,3.51,3.66,3.64,3.69,3.7]},"o2_content":{"b1":[12.84,12.88,12.86,12.98,12.91,13.02,12.77,12.43,12.27,12.33],"b2":[12.22,12.2,12.26,12.25,12.3,12.21,12.2,12.17,12.13,12.23]},"fgh_3rd_energy":{"b1":[22073.21,22233.4,22272.96,22232.68,22805.57,22132.43,23281.56,23047.76,23520.94,23503.62],"b2":[22075.16,22285.05,22235.7,22068.84,22122.01,22154.72,23413.77,23088.09,23978.35,23970.66]},"fgh_12_energy":{"b1":[38798.23,39139.28,38946.16,38673.82,38842.03,38751.87,40905.72,40429.37,47324.83,48939.77],"b2":[38196.33,38276.32,38361.58,38460.34,38659.97,38647.15,40400.67,39879.01,47744.47,47686.02]},"hrsg_efficiency":{"b1":[89.74,89.52,89.58,89.52,89.54,89.32,89.67,89.89,90.3,90.21],"b2":[90.44,90.18,90.23,89.95,90.09,89.88,90.22,90.38,90.55,90.43]}},"did_summary":[{"label":"ST Heat Rate (PI)","b1_delta":-26.17,"b2_delta":45.73,"did":71.9,"unit":"kJ/kWh"},{"label":"ST Heat Rate (Calc)","b1_delta":15.21,"b2_delta":83.41,"did":68.2,"unit":"kJ/kWh"},{"label":"GT Heat Rate","b1_delta":41.73,"b2_delta":18.99,"did":-22.73,"unit":"kJ/kWh"},{"label":"CC Heat Rate Compensate","b1_delta":-20.27,"b2_delta":-18.47,"did":1.8,"unit":"kJ/kWh"},{"label":"HP Throttle ΔP","b1_delta":-0.03,"b2_delta":-0.1,"did":-0.07,"unit":"MPa"},{"label":"Condenser Vacuum","b1_delta":0.83,"b2_delta":0.75,"did":-0.08,"unit":"kPa"},{"label":"HP Inlet Press","b1_delta":0.64,"b2_delta":0.51,"did":-0.14,"unit":"MPa"},{"label":"HRH Steam Temp","b1_delta":2.44,"b2_delta":1.38,"did":-1.06,"unit":"°C"}]};
+
+function init() {
+  const D = DATA;
+
+  const h = D.hrsg_analysis;
+  const labels = h.months;
+
+  // HRSG Efficiency
+  makeChart('chart-hrsg-eff', labels, [ds('B1 Eff',h.hrsg_efficiency.b1,BLUE), ds('B2 Eff',h.hrsg_efficiency.b2,GREEN)], '%');
+
+  // Stack Temp
+  makeChart('chart-stack', labels, [ds('B1 Stack',h.stack_temp.b1,BLUE), ds('B2 Stack',h.stack_temp.b2,GREEN)], '°C');
+
+  // GT Exhaust
+  makeChart('chart-exhaust', labels, [ds('B1 Exh',h.gt_exhaust_temp.b1,BLUE), ds('B2 Exh',h.gt_exhaust_temp.b2,GREEN)], '°C');
+
+  // Ambient
+  makeChart('chart-ambient', labels, [ds('B1 Amb',h.ambient_temp.b1,BLUE), ds('B2 Amb',h.ambient_temp.b2,GREEN)], '°C');
+
+  // HP Drum
+  if (h.hp_drum_press) makeChart('chart-hp-drum', labels, [ds('B1 HP Drum',h.hp_drum_press.b1,BLUE), ds('B2 HP Drum',h.hp_drum_press.b2,GREEN)], 'MPa');
+
+  // O2
+  if (h.o2_content) makeChart('chart-o2', labels, [ds('B1 O2',h.o2_content.b1,BLUE), ds('B2 O2',h.o2_content.b2,GREEN)], '%');
+
+  // FGH 3rd
+  if (h.fgh_3rd_energy) makeChart('chart-fgh3', labels, [ds('B1 FGH-3',h.fgh_3rd_energy.b1,BLUE), ds('B2 FGH-3',h.fgh_3rd_energy.b2,PURPLE)], 'kJ/h');
+
+  // FGH 1+2
+  if (h.fgh_12_energy) makeChart('chart-fgh12', labels, [ds('B1 FGH-1&2',h.fgh_12_energy.b1,BLUE), ds('B2 FGH-1&2',h.fgh_12_energy.b2,PURPLE)], 'kJ/h');
+
+  // Update KPIs with latest month
+  const lastIdx = h.hrsg_efficiency.b1.length - 1;
+  document.getElementById('kpi-b1-eff').textContent = h.hrsg_efficiency.b1[lastIdx]?.toFixed(1) || '—';
+  document.getElementById('kpi-b2-eff').textContent = h.hrsg_efficiency.b2[lastIdx]?.toFixed(1) || '—';
+  document.getElementById('kpi-b1-stack').textContent = h.stack_temp.b1[lastIdx]?.toFixed(1) || '—';
+  document.getElementById('kpi-b2-stack').textContent = h.stack_temp.b2[lastIdx]?.toFixed(1) || '—';
+
+  // Update flow diagram
+  document.getElementById('flow-exhaust').textContent = (h.gt_exhaust_temp.b2[lastIdx]?.toFixed(0)||'646') + ' °C';
+  document.getElementById('flow-stack').textContent = (h.stack_temp.b2[lastIdx]?.toFixed(0)||'89') + ' °C';
+}
+
+init();
+setLang('en');
+</script>
+</body>
+</html>
