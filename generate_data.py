@@ -155,6 +155,30 @@ hrsg = {
     'fgh3_flow':        monthly_median_both(b1, b2, 'GT FUEL GAS HEATER (3RD STAGE) INLET FEED WATER FLOW-1'),
 }
 
+# ── GT Overview ───────────────────────────────────────────────────────────────
+gt = {
+    # GT Output
+    'gt_mw':            monthly_median_both(b1, b2, 'GT MW'),
+    # GT Heat Rate (BTU/kWh)
+    'gt_hr':            monthly_median_both(b1, b2, 'GAS TURBINE HEAT RATE'),
+    # Exhaust Gas Temperature (EGT)
+    'exhaust_temp':     monthly_median_both(b1, b2, 'GT EXHAUST GAS AVERAGE TEMPERATURE (EXHAUST)'),
+    # Fuel Gas Flow (t/h)
+    'fuel_flow':        monthly_median_both(b1, b2, 'GT FUEL GAS FLOW'),
+    # Combustor Shell Pressure
+    'comb_shell_press': monthly_median_both(b1, b2, 'GT COMBUSTOR SHELL PRESSURE'),
+    # Compressor Inlet Air Temperature (T1)
+    'comp_inlet_temp':  monthly_median_both(b1, b2, 'GT COMPRESSOR INLET AIR TEMPERATURE'),
+    # Compressor Outlet Air Temperature (T2)
+    'comp_outlet_temp': monthly_median_both(b1, b2, 'GT COMPRESSOR OUTLET AIR TEMPERATURE'),
+    # IGV Command Signal Output
+    'igvcso':           monthly_median_both(b1, b2, 'GT IGVCSO'),
+    # Barometric Pressure
+    'baro_press':       monthly_median_both(b1, b2, 'GT BAROMETRIC PRESSURE'),
+    # Fuel Gas Temperature
+    'fuel_gas_temp':    monthly_median_both(b1, b2, 'GT FUEL GAS TEMPERATURE'),
+}
+
 # DiD Summary from CSV
 did = []
 try:
@@ -184,6 +208,7 @@ out = {
     'kpi':  kpi,
     'st':   st,
     'hrsg': hrsg,
+    'gt':   gt,
     'did':  did,
 }
 

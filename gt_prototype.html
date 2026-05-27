@@ -1,975 +1,753 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="th" data-lang="th">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Gas Turbine — HKP Dashboard Prototype v2</title>
+<title>Gas Turbine Analysis — HKP Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js" onerror="console.warn('Annotation plugin failed')"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  *, *::before, *::after { box-sizing: border-box; }
   :root {
     --bg:#0d1117; --surface:#161b22; --surface2:#1c2128;
-    --border:#30363d; --text:#e6edf3; --text2:#8b949e;
-    --green:#3fb950; --yellow:#d29922; --red:#f85149;
-    --blue:#58a6ff; --orange:#e3873a; --accent:#1f6feb;
+    --border:#21262d; --border2:#30363d;
+    --text:#e6edf3; --text2:#8b949e; --text3:#484f58;
+    --blue:#58a6ff; --green:#3fb950; --red:#f85149;
+    --yellow:#d29922; --orange:#e3873a; --purple:#a371f7;
+    --accent:#1f6feb;
   }
-  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; display:flex; flex-direction:column; }
+  body { background:var(--bg); color:var(--text); font-family:'Sarabun','Inter',sans-serif; margin:0; overflow-x:hidden; }
+
+  /* Sidebar */
+  .sidebar { width:220px; min-height:100vh; background:var(--surface); border-right:1px solid var(--border); position:fixed; left:0; top:0; display:flex; flex-direction:column; z-index:100; }
+  .sidebar-logo { padding:20px 18px 16px; border-bottom:1px solid var(--border); }
+  .plant-name { font-size:13px; font-weight:700; color:var(--blue); letter-spacing:1px; text-transform:uppercase; }
+  .sub-name { font-size:11px; color:var(--text2); margin-top:2px; }
+  .nav-section-label { font-size:10px; font-weight:600; color:var(--text3); letter-spacing:1.5px; text-transform:uppercase; padding:16px 18px 6px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:9px 18px; margin:1px 8px; border-radius:6px; cursor:pointer; font-size:13.5px; color:var(--text2); transition:all 0.15s; text-decoration:none; }
+  .nav-item:hover { background:var(--border); color:var(--text); }
+  .nav-item.active { background:#1f3a5f; color:var(--blue); font-weight:600; }
 
   /* Topbar */
-  .topbar { background:var(--surface); border-bottom:1px solid var(--border); padding:10px 24px; display:flex; align-items:center; gap:16px; }
-  .topbar-title { font-size:15px; font-weight:600; }
-  .topbar-sub { font-size:12px; color:var(--text2); }
-  .dot-live { width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:livepulse 2s ease infinite; }
-  @keyframes livepulse { 0%,100%{opacity:1}50%{opacity:.4} }
+  .topbar { margin-left:220px; height:56px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; position:sticky; top:0; z-index:50; }
+  .page-title { font-size:15px; font-weight:600; }
+  .page-subtitle { font-size:12px; color:var(--text2); margin-top:1px; }
 
-  /* Layout */
-  .main { display:grid; grid-template-columns:1fr 252px; gap:14px; flex:1; padding:14px 18px; }
-  .diagram-panel { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px; position:relative; overflow:hidden; }
-  .panel-title { font-size:11px; font-weight:600; color:var(--text2); text-transform:uppercase; letter-spacing:.6px; margin-bottom:10px; }
+  /* Tab navigation */
+  .tab-nav { margin-left:220px; background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; display:flex; align-items:center; gap:2px; position:sticky; top:56px; z-index:40; }
+  .tab-btn {
+    padding:12px 16px; font-size:13px; font-weight:500; color:var(--text2);
+    background:transparent; border:none; border-bottom:2px solid transparent;
+    cursor:pointer; transition:all 0.15s; white-space:nowrap;
+    display:flex; align-items:center; gap:7px;
+  }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); font-weight:600; }
 
-  /* SVG wrapper */
-  #gt-svg-wrap { position:relative; width:100%; }
-  #gt-svg-wrap svg { width:100%; height:auto; display:block; }
+  /* Main content */
+  .main-content { margin-left:220px; padding:16px 20px; min-height:calc(100vh - 112px); }
 
-  /* Hotspot */
-  .hotspot { position:absolute; width:20px;height:20px; border-radius:50%; background:rgba(31,111,235,.2); border:1.5px solid var(--blue); cursor:pointer; transform:translate(-50%,-50%); transition:background .2s; display:flex;align-items:center;justify-content:center; z-index:10; }
-  .hotspot::after { content:''; position:absolute; width:100%;height:100%; border-radius:50%; border:1.5px solid var(--blue); animation:ripple 2.2s ease-out infinite; }
-  .hotspot.alarm { border-color:var(--yellow); background:rgba(210,153,34,.15); }
-  .hotspot.alarm::after { border-color:var(--yellow); }
-  .hotspot:hover { background:rgba(31,111,235,.45); transform:translate(-50%,-50%) scale(1.15); }
-  .hotspot-icon { font-size:10px; font-weight:800; color:var(--blue); pointer-events:none; }
-  .hotspot.alarm .hotspot-icon { color:var(--yellow); }
-  @keyframes ripple { 0%{transform:scale(1);opacity:.7} 100%{transform:scale(2.4);opacity:0} }
+  /* Tab content sections */
+  .tab-section { display:none; }
+  .tab-section.active { display:block; }
 
-  /* Floating labels */
-  .param-label { position:absolute; background:rgba(13,17,23,.88); border:1px solid var(--border); border-radius:6px; padding:4px 8px; font-size:10px; pointer-events:none; white-space:nowrap; z-index:9; backdrop-filter:blur(6px); }
-  .param-label .pname { color:var(--text2); display:block; font-size:9px; line-height:1.2; }
-  .param-label .pval { color:var(--text); font-weight:700; font-size:12px; }
-  .param-label .punit { color:var(--text2); font-size:9px; margin-left:2px; }
-  .param-label.alarm .pval { color:var(--yellow); }
+  /* Cards */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .card-title { font-size:12px; font-weight:600; color:var(--text2); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:12px; }
 
-  /* Section tag */
-  .section-tag { position:absolute; font-size:9px; font-weight:700; letter-spacing:.6px; text-transform:uppercase; color:var(--text2); pointer-events:none; z-index:8; opacity:.7; }
+  /* Section header */
+  .section-header { display:flex; align-items:center; gap:10px; margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border); }
+  .section-header h2 { font-size:15px; font-weight:600; margin:0; }
+  .section-header p { font-size:12px; color:var(--text2); margin:2px 0 0; }
 
-  /* Gauge row */
-  .gauge-row { display:flex; gap:8px; margin-top:10px; }
-  .gauge-card { flex:1; background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px; text-align:center; }
-  .gauge-card canvas { width:100%!important; }
-  .gauge-val { font-size:16px; font-weight:700; }
-  .gauge-unit { font-size:10px; color:var(--text2); }
+  /* KPI */
+  .kpi-value { font-size:26px; font-weight:700; line-height:1.1; }
+  .kpi-unit { font-size:12px; color:var(--text2); margin-left:4px; font-weight:400; }
+  .kpi-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .kpi-badge.bad { background:rgba(248,81,73,0.12); color:var(--red); }
+  .kpi-badge.good { background:rgba(63,185,80,0.12); color:var(--green); }
+  .kpi-badge.warn { background:rgba(210,153,34,0.12); color:var(--yellow); }
+  .kpi-badge.neutral { background:rgba(139,148,158,0.12); color:var(--text2); }
 
-  /* Right col */
-  .right-col { display:flex; flex-direction:column; gap:12px; }
-  .kpi-panel { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px; }
-  .param-row { display:flex; align-items:center; padding:6px 4px; border-bottom:1px solid var(--border); cursor:pointer; border-radius:4px; transition:background .15s; gap:7px; }
-  .param-row:last-child { border-bottom:none; }
-  .param-row:hover { background:rgba(255,255,255,.04); }
-  .param-row:hover .param-row-name { color:var(--blue); }
-  .param-row-dot { width:7px;height:7px;border-radius:50%;flex-shrink:0; }
-  .param-row-name { flex:1; font-size:11px; color:var(--text2); }
-  .param-row-val { font-size:13px; font-weight:700; }
-  .param-row-unit { font-size:9px; color:var(--text2); margin-left:2px; }
-  .status-ok { color:var(--green); } .status-alarm { color:var(--yellow); }
-  .trend-up { color:var(--green); font-size:10px; } .trend-dn { color:var(--red); font-size:10px; }
+  /* Chart */
+  .chart-container { position:relative; width:100%; height:220px; }
 
-  /* Modal */
-  .modal-overlay { display:none; position:fixed;inset:0; background:rgba(0,0,0,.72); z-index:100; align-items:center; justify-content:center; backdrop-filter:blur(5px); }
-  .modal-overlay.open { display:flex; }
-  .modal { background:var(--surface2); border:1px solid var(--border); border-radius:12px; width:540px; max-width:95vw; padding:20px; position:relative; box-shadow:0 28px 70px rgba(0,0,0,.7); }
-  .modal-header { display:flex;align-items:center;gap:10px; margin-bottom:14px; }
-  .modal-title { font-size:14px;font-weight:600;flex:1; }
-  .modal-badge { font-size:20px;font-weight:700;color:var(--blue); }
-  .modal-unit { font-size:11px;color:var(--text2); }
-  .modal-close { background:none;border:1px solid var(--border);border-radius:6px;color:var(--text2);width:26px;height:26px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center; }
-  .modal-close:hover { background:var(--border);color:var(--text); }
-  .modal-stats { display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px; }
-  .stat-box { background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center; }
-  .stat-label { font-size:10px;color:var(--text2); }
-  .stat-val { font-size:13px;font-weight:700; }
-  .modal-chart-wrap { height:190px;position:relative; }
+  /* Legend row */
+  .legend-row { display:flex; gap:14px; font-size:11px; margin-bottom:8px; }
+  .legend-dot { width:12px; height:3px; border-radius:2px; display:inline-block; }
+
+  /* Outage label */
+  .outage-label { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); border-radius:6px; font-size:11px; color:var(--red); font-weight:600; }
+
+  /* Lang toggle */
+  .lang-toggle { display:flex; align-items:center; background:var(--border); border-radius:20px; padding:3px; gap:2px; }
+  .lang-btn { padding:4px 12px; border-radius:16px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; color:var(--text2); border:none; background:transparent; }
+  .lang-btn.active { background:var(--blue); color:var(--bg); }
+
+  /* Param summary box */
+  .param-box { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .param-box .label { font-size:11px; color:var(--text3); text-transform:uppercase; font-weight:600; margin-bottom:4px; }
+  .param-box .val { font-size:20px; font-weight:700; }
+  .param-box .sub { font-size:11px; color:var(--text2); margin-top:3px; }
+
+  /* Machine diagram */
+  .gt-schematic { width:100%; background:var(--surface2); border-radius:10px; padding:20px; position:relative; overflow:hidden; }
+  .gt-flow { display:flex; align-items:center; gap:0; width:100%; }
+  .gt-component { background:var(--surface); border:1px solid var(--border2); border-radius:8px; padding:12px 10px; text-align:center; position:relative; flex-shrink:0; }
+  .gt-component .comp-label { font-size:9px; font-weight:700; text-transform:uppercase; color:var(--text3); letter-spacing:0.5px; }
+  .gt-component .comp-name { font-size:11px; font-weight:600; color:var(--text); margin-top:2px; }
+  .gt-component .comp-stages { font-size:9px; color:var(--text2); margin-top:1px; }
+  .gt-arrow { flex:1; height:2px; background:linear-gradient(90deg, var(--border2), var(--blue), var(--border2)); position:relative; }
+  .gt-arrow::after { content:'▶'; position:absolute; right:-5px; top:50%; transform:translateY(-50%); color:var(--blue); font-size:8px; }
+  .comp-inlet { border-color:var(--green); }
+  .comp-compressor { border-color:var(--blue); width:140px; }
+  .comp-combustor { border-color:var(--orange); width:100px; }
+  .comp-turbine { border-color:var(--red); width:130px; }
+  .comp-exhaust { border-color:var(--text3); }
+  .probe-marker { display:inline-flex; align-items:center; gap:4px; padding:2px 6px; background:rgba(88,166,255,0.1); border:1px solid rgba(88,166,255,0.3); border-radius:4px; font-size:9px; color:var(--blue); font-weight:600; margin-top:4px; }
+  .probe-marker.orange { background:rgba(227,135,58,0.1); border-color:rgba(227,135,58,0.3); color:var(--orange); }
+  .probe-marker.red { background:rgba(248,81,73,0.1); border-color:rgba(248,81,73,0.3); color:var(--red); }
+
+  /* Param table */
+  .param-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .param-table th { padding:7px 12px; text-align:left; font-size:10px; font-weight:600; color:var(--text3); border-bottom:1px solid var(--border); text-transform:uppercase; }
+  .param-table td { padding:8px 12px; border-bottom:1px solid var(--border); }
+  .param-table tr:last-child td { border-bottom:none; }
+
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <a href="index.html" style="display:flex;align-items:center;gap:6px;color:var(--text2);text-decoration:none;
-     background:var(--surface2);border:1px solid var(--border);border-radius:6px;
-     padding:5px 12px;font-size:12px;transition:all .15s;flex-shrink:0;"
-     onmouseover="this.style.color='var(--text)';this.style.borderColor='var(--blue)'"
-     onmouseout="this.style.color='var(--text2)';this.style.borderColor='var(--border)'">
-    ← หน้าหลัก
-  </a>
-  <div>
-    <div class="topbar-title">Gas Turbine — Block 1 (GT-B1) &nbsp;<span style="color:var(--text2);font-weight:400;font-size:13px;">Mitsubishi M701J</span></div>
-    <div class="topbar-sub">Single-Shaft · 320 MW Class · Natural Gas · ISO Condition</div>
-  </div>
-  <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
-    <div class="dot-live"></div>
-    <span style="color:var(--green);font-size:12px;font-weight:600;">RUNNING</span>
-    <span style="color:var(--text2);font-size:11px;">อัปเดต 08:45 น.</span>
-  </div>
-</div>
-
-<div class="main">
-
-  <!-- ── Diagram ── -->
-  <div class="diagram-panel">
-    <div class="panel-title">M701J Cross-Section — คลิกจุดวงกลมเพื่อดูกราฟ Trend</div>
-
-    <div id="gt-svg-wrap">
-      <svg id="gt-svg" viewBox="0 0 1000 400" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <!-- Zone gradients (horizontal, left-right temperature) -->
-        <linearGradient id="gzInlet" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#0d1e35"/>
-          <stop offset="100%" stop-color="#112240"/>
-        </linearGradient>
-        <linearGradient id="gzComp" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#112240"/>
-          <stop offset="60%" stop-color="#1a1a50"/>
-          <stop offset="100%" stop-color="#2a1545"/>
-        </linearGradient>
-        <linearGradient id="gzComb" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#3d1206"/>
-          <stop offset="50%" stop-color="#5a1a08"/>
-          <stop offset="100%" stop-color="#4a1608"/>
-        </linearGradient>
-        <linearGradient id="gzTurb" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#4a1608"/>
-          <stop offset="100%" stop-color="#2a1005"/>
-        </linearGradient>
-        <linearGradient id="gzExh" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#2a1005"/>
-          <stop offset="100%" stop-color="#120a04"/>
-        </linearGradient>
-
-        <!-- Casing metallic (vertical) -->
-        <linearGradient id="gCasingTop" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#3d4550"/>
-          <stop offset="40%" stop-color="#5a6270"/>
-          <stop offset="70%" stop-color="#4a525e"/>
-          <stop offset="100%" stop-color="#353c48"/>
-        </linearGradient>
-        <linearGradient id="gCasingBot" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#353c48"/>
-          <stop offset="30%" stop-color="#4a525e"/>
-          <stop offset="60%" stop-color="#5a6270"/>
-          <stop offset="100%" stop-color="#3d4550"/>
-        </linearGradient>
-        <linearGradient id="gHub" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#2d3440"/>
-          <stop offset="50%" stop-color="#4a5265"/>
-          <stop offset="100%" stop-color="#2d3440"/>
-        </linearGradient>
-        <linearGradient id="gShaft" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#555f70"/>
-          <stop offset="50%" stop-color="#8090a8"/>
-          <stop offset="100%" stop-color="#555f70"/>
-        </linearGradient>
-
-        <!-- Flame glow -->
-        <radialGradient id="gFlame1" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#ff8c30" stop-opacity=".5"/>
-          <stop offset="50%" stop-color="#e05010" stop-opacity=".3"/>
-          <stop offset="100%" stop-color="#8b2000" stop-opacity="0"/>
-        </radialGradient>
-        <radialGradient id="gFlame2" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#ffaa40" stop-opacity=".4"/>
-          <stop offset="100%" stop-color="#8b2000" stop-opacity="0"/>
-        </radialGradient>
-
-        <!-- Filters -->
-        <filter id="fGlow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="3.5" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-        <filter id="fSoftGlow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="6" result="blur"/>
-          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
-        <filter id="fMetal">
-          <feDropShadow dx="0" dy="1" stdDeviation="1" flood-color="#000" flood-opacity=".4"/>
-        </filter>
-
-        <!-- VIGV stage highlight -->
-        <linearGradient id="gVIGV" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#1a4060" stop-opacity=".6"/>
-          <stop offset="100%" stop-color="#1a4060" stop-opacity=".2"/>
-        </linearGradient>
-
-        <!-- Combustor can gradient -->
-        <linearGradient id="gCan" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#2a2020"/>
-          <stop offset="100%" stop-color="#3a2818"/>
-        </linearGradient>
-        <linearGradient id="gCanLiner" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0%" stop-color="#3a1a08"/>
-          <stop offset="50%" stop-color="#602010"/>
-          <stop offset="100%" stop-color="#4a1808"/>
-        </linearGradient>
-
-        <!-- Turbine blade gradient -->
-        <linearGradient id="gTurbBlade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#c06030"/>
-          <stop offset="100%" stop-color="#904020"/>
-        </linearGradient>
-      </defs>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  BACKGROUND                              -->
-      <!-- ════════════════════════════════════════ -->
-      <rect width="1000" height="400" fill="#0d1117"/>
-
-      <!-- ── Zone fills (inside casing, temperature gradient) ── -->
-      <!-- Inlet zone -->
-      <path d="M 8,42 C 30,37 65,74 92,90 L 92,310 C 65,326 30,363 8,358 Z"
-            fill="url(#gzInlet)"/>
-      <!-- Compressor zone -->
-      <path d="M 92,90 L 150,95 L 490,122 L 490,278 L 150,305 L 92,310 Z"
-            fill="url(#gzComp)"/>
-      <!-- Combustor zone -->
-      <path d="M 490,72 L 638,72 L 638,328 L 490,328 Z"
-            fill="url(#gzComb)"/>
-      <!-- Turbine zone -->
-      <path d="M 638,72 L 640,72 L 640,328 L 638,328 Z" fill="#4a1608"/>
-      <path d="M 640,110 L 830,94 L 830,306 L 640,290 Z"
-            fill="url(#gzTurb)"/>
-      <!-- Exhaust zone -->
-      <path d="M 830,94 C 880,86 945,60 992,42 L 992,358 C 945,340 880,314 830,306 Z"
-            fill="url(#gzExh)"/>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  OUTER CASING SHELL                      -->
-      <!-- ════════════════════════════════════════ -->
-
-      <!-- Top casing wall (filled shape for thickness) -->
-      <path d="M 8,36
-               C 30,31 65,70 92,88
-               L 150,93
-               L 490,120
-               C 494,120 497,68 516,65
-               L 638,65
-               C 641,65 645,108 650,110
-               L 830,92
-               C 882,80 946,54 992,36
-               L 992,50
-               C 946,68 882,94 830,106
-               L 650,124
-               C 645,122 641,79 638,79
-               L 516,79
-               C 497,82 494,134 490,134
-               L 150,107
-               L 92,102
-               C 65,84 30,45 8,50 Z"
-            fill="url(#gCasingTop)" filter="url(#fMetal)"/>
-
-      <!-- Bottom casing wall -->
-      <path d="M 8,364
-               C 30,369 65,330 92,312
-               L 150,307
-               L 490,280
-               C 494,280 497,332 516,335
-               L 638,335
-               C 641,335 645,292 650,290
-               L 830,308
-               C 882,320 946,346 992,364
-               L 992,350
-               C 946,332 882,306 830,294
-               L 650,276
-               C 645,278 641,321 638,321
-               L 516,321
-               C 497,318 494,266 490,266
-               L 150,293
-               L 92,298
-               C 65,316 30,355 8,350 Z"
-            fill="url(#gCasingBot)" filter="url(#fMetal)"/>
-
-      <!-- Casing outer edge highlights (top & bottom lines) -->
-      <path d="M 8,36 C 30,31 65,70 92,88 L 150,93 L 490,120
-               C 494,120 497,68 516,65 L 638,65
-               C 641,65 645,108 650,110 L 830,92
-               C 882,80 946,54 992,36"
-            fill="none" stroke="#6b7888" stroke-width="1.5"/>
-      <path d="M 8,364 C 30,369 65,330 92,312 L 150,307 L 490,280
-               C 494,280 497,332 516,335 L 638,335
-               C 641,335 645,292 650,290 L 830,308
-               C 882,320 946,346 992,364"
-            fill="none" stroke="#6b7888" stroke-width="1.5"/>
-
-      <!-- Casing inner edge (inside face) -->
-      <path d="M 92,102 L 150,107 L 490,134
-               C 494,134 497,82 516,79 L 638,79
-               C 641,79 645,122 650,124 L 830,106
-               C 882,94 946,68 992,50"
-            fill="none" stroke="#3a4250" stroke-width="1"/>
-      <path d="M 92,298 L 150,293 L 490,266
-               C 494,266 497,318 516,321 L 638,321
-               C 641,321 645,278 650,276 L 830,294
-               C 882,306 946,332 992,350"
-            fill="none" stroke="#3a4250" stroke-width="1"/>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  INNER HUB / DRUM                        -->
-      <!-- ════════════════════════════════════════ -->
-
-      <!-- Hub fill (rotor drum) -->
-      <path d="M 92,158 L 490,174 L 638,174 L 830,182
-               L 830,218 L 638,226 L 490,226 L 92,242 Z"
-            fill="url(#gHub)" stroke="#3a4255" stroke-width="1"/>
-
-      <!-- Hub top & bottom highlight lines -->
-      <path d="M 92,158 L 490,174 L 638,174 L 830,182"
-            fill="none" stroke="#5a6278" stroke-width="1.2"/>
-      <path d="M 92,242 L 490,226 L 638,226 L 830,218"
-            fill="none" stroke="#5a6278" stroke-width="1.2"/>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  SHAFT                                   -->
-      <!-- ════════════════════════════════════════ -->
-      <rect x="8" y="193" width="984" height="14" rx="4"
-            fill="url(#gShaft)" stroke="#4a5565" stroke-width="1"/>
-      <!-- Shaft coupling flanges -->
-      <rect x="288" y="189" width="8" height="22" rx="2" fill="#6a7585" stroke="#4a5565" stroke-width="1"/>
-      <rect x="638" y="189" width="8" height="22" rx="2" fill="#6a7585" stroke="#4a5565" stroke-width="1"/>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  INLET BELL MOUTH                        -->
-      <!-- ════════════════════════════════════════ -->
-      <!-- Inlet struts (structural supports visible in cross-section) -->
-      <g stroke="#4a5565" stroke-width="1.5" opacity="0.8">
-        <line x1="50" y1="102" x2="50" y2="110"/>
-        <line x1="50" y1="290" x2="50" y2="298"/>
-      </g>
-      <!-- Inlet bell mouth curve -->
-      <path d="M 8,88 C 25,80 55,105 92,120" fill="none" stroke="#5a6275" stroke-width="1.5" stroke-dasharray="none"/>
-      <path d="M 8,312 C 25,320 55,295 92,280" fill="none" stroke="#5a6275" stroke-width="1.5"/>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  IGV SECTION                             -->
-      <!-- ════════════════════════════════════════ -->
-      <!-- IGV box highlight -->
-      <rect x="92" y="93" width="58" height="214" fill="rgba(30,80,140,.12)" stroke="rgba(88,166,255,.25)" stroke-width="1" rx="0"/>
-      <!-- IGV blades drawn inline (8 blades, variable angle) -->
-      <g id="igv-blades"></g>
-      <!-- IGV label -->
-      <text x="121" y="86" fill="#58a6ff" font-size="8.5" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700" letter-spacing=".4">IGV</text>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  VIGV highlight (stages 1-4)             -->
-      <!-- ════════════════════════════════════════ -->
-      <rect x="150" y="93" width="82" height="214" fill="url(#gVIGV)" rx="0"/>
-      <text x="191" y="86" fill="#5898cc" font-size="8.5" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700" letter-spacing=".4">VIGV</text>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  COMPRESSOR BLADE ROWS (via JS)          -->
-      <!-- ════════════════════════════════════════ -->
-      <g id="comp-blades"></g>
-
-      <!-- Compressor section border label -->
-      <text x="320" y="86" fill="#8b949e" font-size="8.5" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="600" letter-spacing=".5">COMPRESSOR — 17 STAGES</text>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  COMBUSTOR SECTION                       -->
-      <!-- ════════════════════════════════════════ -->
-
-      <!-- Combustor outer wrapper lines -->
-      <rect x="490" y="65" width="148" height="14" fill="#2a3040" stroke="#4a5565" stroke-width="1"/>
-      <rect x="490" y="321" width="148" height="14" fill="#2a3040" stroke="#4a5565" stroke-width="1"/>
-
-      <!-- Combustion Can 1 (upper) -->
-      <rect x="505" y="82" width="120" height="68" rx="6"
-            fill="url(#gCan)" stroke="#5a4535" stroke-width="1.5"/>
-      <!-- Can liner (inner flame tube) -->
-      <rect x="512" y="90" width="106" height="52" rx="4"
-            fill="url(#gCanLiner)" stroke="#8b5520" stroke-width="1"/>
-      <!-- Flame glow inside can 1 -->
-      <ellipse cx="565" cy="116" rx="38" ry="22" fill="url(#gFlame1)" filter="url(#fSoftGlow)"/>
-      <ellipse cx="555" cy="116" rx="18" ry="12" fill="rgba(255,160,50,.35)" filter="url(#fGlow)"/>
-      <!-- Fuel nozzle -->
-      <rect x="503" y="111" width="9" height="8" rx="2" fill="#7a8898" stroke="#5a6575" stroke-width="1"/>
-      <line x1="508" y1="111" x2="515" y2="116" stroke="#e0a840" stroke-width="1" opacity="0.6"/>
-      <!-- Can 1 label -->
-      <text x="565" y="120" fill="rgba(255,200,100,.5)" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="600">CAN #1</text>
-
-      <!-- Combustion Can 2 (lower) -->
-      <rect x="505" y="250" width="120" height="68" rx="6"
-            fill="url(#gCan)" stroke="#5a4535" stroke-width="1.5"/>
-      <!-- Can liner -->
-      <rect x="512" y="258" width="106" height="52" rx="4"
-            fill="url(#gCanLiner)" stroke="#8b5520" stroke-width="1"/>
-      <!-- Flame glow inside can 2 -->
-      <ellipse cx="565" cy="284" rx="38" ry="22" fill="url(#gFlame2)" filter="url(#fSoftGlow)"/>
-      <ellipse cx="555" cy="284" rx="18" ry="12" fill="rgba(255,160,50,.30)" filter="url(#fGlow)"/>
-      <!-- Fuel nozzle 2 -->
-      <rect x="503" y="279" width="9" height="8" rx="2" fill="#7a8898" stroke="#5a6575" stroke-width="1"/>
-      <!-- Can 2 label -->
-      <text x="565" y="288" fill="rgba(255,200,100,.5)" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="600">CAN #2</text>
-
-      <!-- Middle zone (hub + shaft area in combustor) -->
-      <text x="565" y="200" fill="rgba(180,120,60,.4)" font-size="7.5" font-family="'Segoe UI',sans-serif" text-anchor="middle">· · · 20 cans total · · ·</text>
-
-      <!-- Combustor section label -->
-      <text x="564" y="58" fill="#8b949e" font-size="8.5" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="600" letter-spacing=".5">COMBUSTOR (CAN-ANNULAR)</text>
-
-      <!-- Transition pieces (comb → turbine) -->
-      <path d="M 630,90 C 638,90 640,112 642,112" fill="none" stroke="#6a5040" stroke-width="2"/>
-      <path d="M 630,150 C 636,150 640,140 642,140" fill="none" stroke="#6a5040" stroke-width="1.5"/>
-      <path d="M 630,250 C 636,250 640,260 642,260" fill="none" stroke="#6a5040" stroke-width="1.5"/>
-      <path d="M 630,310 C 638,310 640,288 642,288" fill="none" stroke="#6a5040" stroke-width="2"/>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  TURBINE BLADE ROWS (via JS)             -->
-      <!-- ════════════════════════════════════════ -->
-      <g id="turb-blades"></g>
-
-      <!-- Turbine stage 1 (hottest) glow -->
-      <rect x="648" y="112" width="36" height="176" fill="rgba(200,80,20,.08)" rx="0"/>
-
-      <!-- Turbine section label -->
-      <text x="740" y="58" fill="#8b949e" font-size="8.5" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="600" letter-spacing=".5">TURBINE — 4 STAGES</text>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  EXHAUST DIFFUSER                        -->
-      <!-- ════════════════════════════════════════ -->
-      <!-- Exhaust struts -->
-      <line x1="900" y1="106" x2="900" y2="158" stroke="#3a4250" stroke-width="1.5"/>
-      <line x1="900" y1="242" x2="900" y2="294" stroke="#3a4250" stroke-width="1.5"/>
-      <line x1="950" y1="82" x2="950" y2="172" stroke="#3a4250" stroke-width="1"/>
-      <line x1="950" y1="228" x2="950" y2="318" stroke="#3a4250" stroke-width="1"/>
-      <!-- Exhaust flow arrows -->
-      <g fill="none" stroke="#5a3a20" stroke-width="1" stroke-dasharray="8,6" opacity="0.5">
-        <line x1="840" y1="130" x2="985" y2="110"/>
-        <line x1="840" y1="160" x2="985" y2="150"/>
-        <line x1="840" y1="200" x2="985" y2="200"/>
-        <line x1="840" y1="240" x2="985" y2="250"/>
-        <line x1="840" y1="270" x2="985" y2="290"/>
-      </g>
-      <!-- Exhaust label -->
-      <text x="916" y="58" fill="#8b949e" font-size="8.5" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="600" letter-spacing=".5">EXHAUST</text>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  SECTION DIVIDERS                        -->
-      <!-- ════════════════════════════════════════ -->
-      <line x1="92" y1="50" x2="92" y2="350" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4" opacity=".7"/>
-      <line x1="150" y1="50" x2="150" y2="350" stroke="#3d4860" stroke-width="1" stroke-dasharray="3,5" opacity=".5"/>
-      <line x1="232" y1="50" x2="232" y2="350" stroke="#3d4860" stroke-width="1" stroke-dasharray="3,5" opacity=".4"/>
-      <line x1="490" y1="50" x2="490" y2="350" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4" opacity=".7"/>
-      <line x1="640" y1="50" x2="640" y2="350" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4" opacity=".7"/>
-      <line x1="830" y1="50" x2="830" y2="350" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4" opacity=".7"/>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  BOTTOM INFO BAR                         -->
-      <!-- ════════════════════════════════════════ -->
-      <line x1="20" y1="368" x2="980" y2="368" stroke="#21262d" stroke-width="1"/>
-      <!-- Flow arrow -->
-      <text x="500" y="385" fill="#30363d" font-size="9" font-family="monospace" text-anchor="middle">◀ ─────  Air / Gas Flow Direction  ───── ▶</text>
-      <!-- RPM indicator (decorative) -->
-      <path d="M 130,380 A 10,10 0 0 1 160,380" fill="none" stroke="#58a6ff" stroke-width="1.5" stroke-linecap="round" opacity=".4"/>
-      <text x="145" y="395" fill="#58a6ff" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" opacity=".5">3000 RPM</text>
-
-      </svg>
-
-      <!-- ════════════════════════════════════════ -->
-      <!--  HOTSPOTS (HTML over SVG)                -->
-      <!-- ════════════════════════════════════════ -->
-
-      <!-- T1 Inlet -->
-      <div class="hotspot" style="left:4%;top:50%;" onclick="openModal('t1')">
-        <span class="hotspot-icon">+</span>
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1f6feb,#58a6ff);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
       </div>
-      <div class="param-label" style="left:6%;top:30%;">
-        <span class="pname">T1 — Inlet Air Temp</span>
-        <span class="pval">28.4<span class="punit">°C</span></span>
-      </div>
-
-      <!-- IGV angle -->
-      <div class="hotspot" style="left:12%;top:20%;" onclick="openModal('igv')">
-        <span class="hotspot-icon">+</span>
-      </div>
-      <div class="param-label" style="left:14%;top:10%;">
-        <span class="pname">IGV Angle</span>
-        <span class="pval">86.2<span class="punit">°</span></span>
-      </div>
-
-      <!-- T2/P2 Compressor discharge -->
-      <div class="hotspot" style="left:48%;top:28%;" onclick="openModal('t2p2')">
-        <span class="hotspot-icon">+</span>
-      </div>
-      <div class="param-label" style="left:50%;top:17%;">
-        <span class="pname">T2 / P2 — Comp. Discharge</span>
-        <span class="pval">425°C <span class="punit">/ 1.74 MPa</span></span>
-      </div>
-
-      <!-- Fuel Flow (alarm) -->
-      <div class="hotspot alarm" style="left:56%;top:10%;" onclick="openModal('fuel')">
-        <span class="hotspot-icon" style="color:var(--yellow)">!</span>
-      </div>
-      <div class="param-label alarm" style="left:58%;top:2%;border-color:rgba(210,153,34,.4);">
-        <span class="pname">Fuel Flow</span>
-        <span class="pval">⚠ 24.92<span class="punit" style="color:var(--text2)"> MMSCFD</span></span>
-      </div>
-
-      <!-- T3 Turbine Inlet -->
-      <div class="hotspot" style="left:64%;top:65%;" onclick="openModal('t3')">
-        <span class="hotspot-icon">+</span>
-      </div>
-      <div class="param-label" style="left:62%;top:75%;">
-        <span class="pname">T3 — Turbine Inlet Temp</span>
-        <span class="pval">1,350<span class="punit">°C</span></span>
-      </div>
-
-      <!-- EGT -->
-      <div class="hotspot" style="left:86%;top:50%;" onclick="openModal('egt')">
-        <span class="hotspot-icon">+</span>
-      </div>
-      <div class="param-label" style="left:74%;top:64%;">
-        <span class="pname">EGT — Exhaust Gas Temp</span>
-        <span class="pval">612.8<span class="punit">°C</span></span>
-      </div>
-
-    </div><!-- /gt-svg-wrap -->
-
-    <!-- Gauges -->
-    <div class="gauge-row" style="margin-top:10px;">
-      <div class="gauge-card">
-        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">SPEED</div>
-        <div style="position:relative;height:80px;"><canvas id="gRPM"></canvas></div>
-        <div class="gauge-val" style="color:var(--green);">3,000</div>
-        <div class="gauge-unit">RPM</div>
-      </div>
-      <div class="gauge-card">
-        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">OUTPUT</div>
-        <div style="position:relative;height:80px;"><canvas id="gMW"></canvas></div>
-        <div class="gauge-val" style="color:var(--blue);">300.5</div>
-        <div class="gauge-unit">MW</div>
-      </div>
-      <div class="gauge-card">
-        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">HEAT RATE</div>
-        <div style="position:relative;height:80px;"><canvas id="gHR"></canvas></div>
-        <div class="gauge-val" style="color:var(--yellow);">7,842</div>
-        <div class="gauge-unit">kJ/kWh</div>
-      </div>
-      <div class="gauge-card">
-        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">PRESS. RATIO</div>
-        <div style="position:relative;height:80px;"><canvas id="gPR"></canvas></div>
-        <div class="gauge-val" style="color:var(--text);">23.1</div>
-        <div class="gauge-unit">P2/P1</div>
-      </div>
-      <div class="gauge-card">
-        <div style="font-size:10px;color:var(--text2);margin-bottom:4px;">EGT</div>
-        <div style="position:relative;height:80px;"><canvas id="gEGT"></canvas></div>
-        <div class="gauge-val" style="color:var(--orange);">612.8</div>
-        <div class="gauge-unit">°C</div>
-      </div>
-    </div>
-  </div><!-- /diagram-panel -->
-
-  <!-- ── Right column ── -->
-  <div class="right-col">
-    <div class="kpi-panel">
-      <div class="panel-title" style="margin-bottom:8px;">📊 Parameters — คลิกดู Trend</div>
-      <div class="param-row" onclick="openModal('t1')">
-        <div class="param-row-dot" style="background:var(--blue)"></div>
-        <span class="param-row-name">Inlet Air Temp (T1)</span>
-        <span class="param-row-val status-ok">28.4</span><span class="param-row-unit">°C</span>
-        <span class="trend-up">▲</span>
-      </div>
-      <div class="param-row" onclick="openModal('igv')">
-        <div class="param-row-dot" style="background:var(--blue)"></div>
-        <span class="param-row-name">IGV / VIGV Angle</span>
-        <span class="param-row-val status-ok">86.2</span><span class="param-row-unit">°</span>
-        <span class="trend-dn">▼</span>
-      </div>
-      <div class="param-row" onclick="openModal('t2p2')">
-        <div class="param-row-dot" style="background:#a78bfa)"></div>
-        <span class="param-row-name">Comp. Discharge T2</span>
-        <span class="param-row-val status-ok">425.1</span><span class="param-row-unit">°C</span>
-        <span style="font-size:10px;color:var(--text2);">─</span>
-      </div>
-      <div class="param-row" onclick="openModal('t2p2')">
-        <div class="param-row-dot" style="background:#a78bfa"></div>
-        <span class="param-row-name">Comp. Discharge P2</span>
-        <span class="param-row-val status-ok">1.74</span><span class="param-row-unit">MPa</span>
-        <span style="font-size:10px;color:var(--text2);">─</span>
-      </div>
-      <div class="param-row" onclick="openModal('fuel')">
-        <div class="param-row-dot" style="background:var(--yellow)"></div>
-        <span class="param-row-name">Fuel Flow</span>
-        <span class="param-row-val status-alarm">24.92</span><span class="param-row-unit">MMSCFD</span>
-        <span class="trend-up" style="color:var(--yellow)">▲</span>
-      </div>
-      <div class="param-row" onclick="openModal('t3')">
-        <div class="param-row-dot" style="background:var(--red)"></div>
-        <span class="param-row-name">Turbine Inlet Temp (T3)</span>
-        <span class="param-row-val status-ok">1,350</span><span class="param-row-unit">°C</span>
-        <span style="font-size:10px;color:var(--text2);">─</span>
-      </div>
-      <div class="param-row" onclick="openModal('egt')">
-        <div class="param-row-dot" style="background:var(--orange)"></div>
-        <span class="param-row-name">Exhaust Gas Temp (EGT)</span>
-        <span class="param-row-val status-ok">612.8</span><span class="param-row-unit">°C</span>
-        <span class="trend-up">▲</span>
-      </div>
-      <div class="param-row" onclick="openModal('nox')">
-        <div class="param-row-dot" style="background:var(--green)"></div>
-        <span class="param-row-name">NOx Emission</span>
-        <span class="param-row-val status-ok">18.2</span><span class="param-row-unit">ppm</span>
-        <span class="trend-dn">▼</span>
-      </div>
-    </div>
-
-    <div class="kpi-panel" style="border-color:rgba(210,153,34,.4);">
-      <div class="panel-title" style="color:var(--yellow);margin-bottom:8px;">⚠ Alarms</div>
-      <div style="background:rgba(210,153,34,.1);border-radius:6px;padding:8px 10px;border-left:3px solid var(--yellow);">
-        <div style="font-size:11px;font-weight:600;color:var(--yellow);">Fuel Flow High</div>
-        <div style="font-size:10px;color:var(--text2);margin-top:2px;">24.92 / Limit 24.5 MMSCFD</div>
-        <div style="font-size:10px;color:var(--text2);">08:32 น. — ยังค้างอยู่</div>
-      </div>
-    </div>
-
-    <div class="kpi-panel">
-      <div class="panel-title" style="margin-bottom:8px;">🔧 Machine Info</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px;">
-        <div style="color:var(--text2);">Model</div><div>M701J</div>
-        <div style="color:var(--text2);">Stages Comp.</div><div>17</div>
-        <div style="color:var(--text2);">Turbine Stages</div><div>4</div>
-        <div style="color:var(--text2);">TIT (ISO)</div><div>1,600 °C class</div>
-        <div style="color:var(--text2);">Rated Output</div><div>320 MW</div>
-        <div style="color:var(--text2);">Run Hours</div><div style="color:var(--green);">2,184 h</div>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /main -->
-
-<!-- ── MODAL ── -->
-<div class="modal-overlay" id="modal" onclick="if(event.target===this)closeModal()">
-  <div class="modal">
-    <div class="modal-header">
       <div>
-        <div class="modal-title" id="modal-title">Parameter Trend</div>
-        <div style="font-size:11px;color:var(--text2);" id="modal-sub">24 ชม. ย้อนหลัง</div>
+        <div class="plant-name">HKP Power Plant</div>
+        <div class="sub-name" data-th="ระบบติดตามประสิทธิภาพโรงไฟฟ้า" data-en="Plant Performance Monitoring">Plant Performance Monitoring</div>
       </div>
-      <div style="margin-left:auto;text-align:right;">
-        <div class="modal-badge" id="modal-val">—</div>
-        <div class="modal-unit" id="modal-unit"></div>
-      </div>
-      <button class="modal-close" onclick="closeModal()">✕</button>
     </div>
-    <div class="modal-stats">
-      <div class="stat-box"><div class="stat-label">Min (24h)</div><div class="stat-val" id="stat-min">—</div></div>
-      <div class="stat-box"><div class="stat-label">Avg (24h)</div><div class="stat-val" id="stat-avg">—</div></div>
-      <div class="stat-box"><div class="stat-label">Max (24h)</div><div class="stat-val" id="stat-max">—</div></div>
-    </div>
-    <div class="modal-chart-wrap"><canvas id="modal-chart"></canvas></div>
-    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end;">
-      <button style="background:var(--surface);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;" onclick="closeModal()">ปิด</button>
-      <button style="background:var(--accent);border:none;color:white;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px;">⤢ เต็มจอ</button>
+  </div>
+  <nav style="flex:1;padding:8px 0;overflow-y:auto;">
+    <div class="nav-section-label">OVERVIEW</div>
+    <a class="nav-item" href="index.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span data-th="ภาพรวมระบบ" data-en="Overview">Overview</span>
+    </a>
+    <div class="nav-section-label">EQUIPMENT</div>
+    <a class="nav-item active" href="gt_prototype.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      <span>Gas Turbine</span>
+    </a>
+    <a class="nav-item" href="st_analysis.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      <span>Steam Turbine</span>
+    </a>
+    <a class="nav-item" href="hrsg_analysis.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span>HRSG</span>
+    </a>
+    <div class="nav-section-label" style="margin-top:8px;">REPORTS</div>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span data-th="รายงานประจำวัน" data-en="Daily Report">Daily Report</span>
+    </a>
+  </nav>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="page-title" data-th="วิเคราะห์ Gas Turbine — B1 vs B2" data-en="Gas Turbine Analysis — B1 vs B2">Gas Turbine Analysis — B1 vs B2</div>
+    <div class="page-subtitle" id="gt-subtitle" data-th="Single-Shaft · Natural Gas · Mitsubishi M701J" data-en="Single-Shaft · Natural Gas · Mitsubishi M701J">Single-Shaft · Natural Gas · Mitsubishi M701J</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="outage-label">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span data-th="B2 Outage: เม.ย. 2026" data-en="B2 Outage: Apr 2026">B2 Outage: Apr 2026</span>
+    </span>
+    <div class="lang-toggle">
+      <button class="lang-btn" onclick="setLang('th')" id="btn-th">TH</button>
+      <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
     </div>
   </div>
 </div>
+
+<!-- TAB NAVIGATION -->
+<div class="tab-nav">
+  <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    <span data-th="ภาพรวม" data-en="Overview">Overview</span>
+  </button>
+  <button class="tab-btn" data-tab="machine" onclick="switchTab('machine')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+    <span data-th="โครงสร้างเครื่อง" data-en="Machine View">Machine View</span>
+  </button>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+
+  <!-- ═══════════════════ OVERVIEW TAB ═══════════════════ -->
+  <div id="tab-overview" class="tab-section active">
+
+    <!-- KPI Cards -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
+
+      <!-- B1 GT HR -->
+      <div class="card">
+        <div class="card-title" data-th="B1 GT Heat Rate" data-en="B1 GT Heat Rate">B1 GT Heat Rate</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;">
+          <span class="kpi-value" id="kpi-b1-gt-hr">—</span>
+          <span class="kpi-unit">BTU/kWh</span>
+        </div>
+        <div id="kpi-b1-gt-hr-badge" class="kpi-badge neutral">Latest Month</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px;" data-th="GT Heat Rate ล่าสุด" data-en="Latest month median">Latest month median</div>
+      </div>
+
+      <!-- B2 GT HR -->
+      <div class="card">
+        <div class="card-title" data-th="B2 GT Heat Rate" data-en="B2 GT Heat Rate">B2 GT Heat Rate</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;">
+          <span class="kpi-value" id="kpi-b2-gt-hr">—</span>
+          <span class="kpi-unit">BTU/kWh</span>
+        </div>
+        <div id="kpi-b2-gt-hr-badge" class="kpi-badge neutral">Latest Month</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px;" data-th="GT Heat Rate ล่าสุด" data-en="Latest month median">Latest month median</div>
+      </div>
+
+      <!-- B1 EGT -->
+      <div class="card">
+        <div class="card-title" data-th="B1 EGT" data-en="B1 EGT (Exhaust Gas Temp)">B1 EGT (Exhaust Gas Temp)</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;">
+          <span class="kpi-value" id="kpi-b1-egt">—</span>
+          <span class="kpi-unit">°C</span>
+        </div>
+        <div class="kpi-badge neutral">Latest Month</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px;" data-th="อุณหภูมิไอเสียออก GT" data-en="GT exhaust gas temperature">GT exhaust gas temperature</div>
+      </div>
+
+      <!-- B2 EGT -->
+      <div class="card">
+        <div class="card-title" data-th="B2 EGT" data-en="B2 EGT (Exhaust Gas Temp)">B2 EGT (Exhaust Gas Temp)</div>
+        <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:8px;">
+          <span class="kpi-value" id="kpi-b2-egt">—</span>
+          <span class="kpi-unit">°C</span>
+        </div>
+        <div class="kpi-badge neutral">Latest Month</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:6px;" data-th="อุณหภูมิไอเสียออก GT" data-en="GT exhaust gas temperature">GT exhaust gas temperature</div>
+      </div>
+    </div>
+
+    <!-- Section header -->
+    <div class="section-header" style="margin-bottom:16px;">
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1f6feb22,#58a6ff22);border:1px solid #1f6feb55;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <div>
+        <h2 data-th="แนวโน้มรายเดือน — B1 vs B2" data-en="Monthly Trends — B1 vs B2">Monthly Trends — B1 vs B2</h2>
+        <p data-th="ค่า Median รายเดือน ข้อมูลจริงจาก DCS/PI" data-en="Monthly median values from DCS/PI data">Monthly median values from DCS/PI data</p>
+      </div>
+      <div style="margin-left:auto;">
+        <div class="legend-row" style="margin-bottom:0;">
+          <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:#58a6ff;"></span> Block 1</span>
+          <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:#f85149;"></span> Block 2</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1: GT HR + GT MW -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="card">
+        <div class="card-title" data-th="GT Heat Rate รายเดือน" data-en="GT Heat Rate (Monthly Median)">GT Heat Rate (Monthly Median)</div>
+        <div class="chart-container"><canvas id="chart-gt-hr"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title" data-th="GT Output Power รายเดือน" data-en="GT Output Power (Monthly Median)">GT Output Power (Monthly Median)</div>
+        <div class="chart-container"><canvas id="chart-gt-mw"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2: EGT + Fuel Flow -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="card">
+        <div class="card-title" data-th="EGT — Exhaust Gas Temperature" data-en="EGT — Exhaust Gas Temperature">EGT — Exhaust Gas Temperature</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;" data-th="อุณหภูมิก๊าซไอเสียออกจาก GT ก่อนเข้า HRSG" data-en="GT exhaust gas temp before entering HRSG">GT exhaust gas temp before entering HRSG</div>
+        <div class="chart-container"><canvas id="chart-egt"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title" data-th="Fuel Gas Flow รายเดือน" data-en="Fuel Gas Flow (Monthly Median)">Fuel Gas Flow (Monthly Median)</div>
+        <div class="chart-container"><canvas id="chart-fuel-flow"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Charts Row 3: Combustor Shell Press + Comp Inlet Temp (T1) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="card">
+        <div class="card-title" data-th="Combustor Shell Pressure" data-en="Combustor Shell Pressure">Combustor Shell Pressure</div>
+        <div class="chart-container"><canvas id="chart-comb-press"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title" data-th="Compressor Inlet Air Temp (T1)" data-en="Compressor Inlet Air Temp (T1)">Compressor Inlet Air Temp (T1)</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;" data-th="อุณหภูมิอากาศที่เข้า Compressor — ส่งผลต่อ GT Output" data-en="Air temperature entering compressor — affects GT output">Air temperature entering compressor — affects GT output</div>
+        <div class="chart-container"><canvas id="chart-comp-inlet-temp"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Charts Row 4: IGVCSO + Comp Outlet Temp (T2) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+      <div class="card">
+        <div class="card-title" data-th="IGV Command Signal (IGVCSO)" data-en="IGV Command Signal (IGVCSO)">IGV Command Signal (IGVCSO)</div>
+        <div style="font-size:11px;color:var(--text2);margin-bottom:6px;" data-th="Inlet Guide Vane — ปรับปริมาณอากาศเข้า Compressor" data-en="Inlet Guide Vane — controls airflow into compressor">Inlet Guide Vane — controls airflow into compressor</div>
+        <div class="chart-container"><canvas id="chart-igvcso"></canvas></div>
+      </div>
+      <div class="card">
+        <div class="card-title" data-th="Compressor Outlet Air Temp (T2)" data-en="Compressor Outlet Air Temp (T2)">Compressor Outlet Air Temp (T2)</div>
+        <div class="chart-container"><canvas id="chart-comp-outlet-temp"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Data info footer -->
+    <div style="text-align:right;font-size:11px;color:var(--text3);margin-top:4px;" id="gt-data-info">
+      Loading live data...
+    </div>
+
+  </div><!-- /tab-overview -->
+
+  <!-- ═══════════════════ MACHINE VIEW TAB ═══════════════════ -->
+  <div id="tab-machine" class="tab-section">
+
+    <!-- Machine header -->
+    <div class="section-header" style="margin-bottom:16px;">
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#e3873a22,#e3873a44);border:1px solid #e3873a55;border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      </div>
+      <div>
+        <h2 data-th="โครงสร้าง Gas Turbine — Mitsubishi M701J" data-en="Gas Turbine — Mitsubishi M701J Machine View">Gas Turbine — Mitsubishi M701J Machine View</h2>
+        <p data-th="Single-Shaft · 17-Stage Compressor · 4-Stage Turbine · 3,000 RPM" data-en="Single-Shaft · 17-Stage Compressor · 4-Stage Turbine · 3,000 RPM">Single-Shaft · 17-Stage Compressor · 4-Stage Turbine · 3,000 RPM</p>
+      </div>
+    </div>
+
+    <!-- Flow Diagram -->
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title" data-th="แผนผัง Thermodynamic Flow" data-en="Thermodynamic Flow Diagram">Thermodynamic Flow Diagram</div>
+
+      <!-- Stage schematic -->
+      <div style="padding:20px 10px;">
+        <!-- Air + fuel flow line -->
+        <svg width="100%" viewBox="0 0 900 200" xmlns="http://www.w3.org/2000/svg" style="overflow:visible;">
+          <!-- Background grid lines -->
+          <defs>
+            <linearGradient id="airGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#3fb950;stop-opacity:0.6"/>
+              <stop offset="30%" style="stop-color:#58a6ff;stop-opacity:0.8"/>
+              <stop offset="100%" style="stop-color:#f85149;stop-opacity:0.6"/>
+            </linearGradient>
+            <linearGradient id="exhaustGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" style="stop-color:#f85149;stop-opacity:0.8"/>
+              <stop offset="100%" style="stop-color:#8b949e;stop-opacity:0.3"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Flow path top -->
+          <path d="M 30 80 L 870 80" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+          <!-- Flow path bottom -->
+          <path d="M 30 130 L 870 130" stroke="#30363d" stroke-width="1" stroke-dasharray="4,4"/>
+
+          <!-- Main flow arrow -->
+          <path d="M 30 105 L 860 105" stroke="url(#airGrad)" stroke-width="3" opacity="0.5"/>
+          <polygon points="860,100 875,105 860,110" fill="#f85149" opacity="0.7"/>
+
+          <!-- ── INLET ── -->
+          <rect x="20" y="70" width="60" height="60" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+          <text x="50" y="88" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">INLET</text>
+          <text x="50" y="100" text-anchor="middle" fill="#3fb950" font-size="9" font-weight="bold" font-family="sans-serif">AIR</text>
+          <!-- T1 probe -->
+          <circle cx="80" cy="105" r="4" fill="#58a6ff" opacity="0.8"/>
+          <line x1="80" y1="101" x2="80" y2="70" stroke="#58a6ff" stroke-width="1.5" stroke-dasharray="2,2"/>
+          <rect x="56" y="54" width="48" height="14" rx="3" fill="#161b22" stroke="#58a6ff" stroke-width="1"/>
+          <text x="80" y="64" text-anchor="middle" fill="#58a6ff" font-size="8" font-family="sans-serif">T1 Inlet</text>
+
+          <!-- ── COMPRESSOR ── -->
+          <rect x="100" y="60" width="200" height="80" rx="8" fill="#1c2128" stroke="#58a6ff" stroke-width="1.5"/>
+          <!-- Blade lines -->
+          <line x1="130" y1="65" x2="120" y2="135" stroke="#58a6ff" stroke-width="1" opacity="0.4"/>
+          <line x1="150" y1="63" x2="142" y2="137" stroke="#58a6ff" stroke-width="1" opacity="0.4"/>
+          <line x1="170" y1="62" x2="163" y2="138" stroke="#58a6ff" stroke-width="1" opacity="0.4"/>
+          <line x1="190" y1="61" x2="184" y2="139" stroke="#58a6ff" stroke-width="1" opacity="0.4"/>
+          <line x1="210" y1="61" x2="205" y2="139" stroke="#58a6ff" stroke-width="1" opacity="0.4"/>
+          <line x1="230" y1="61" x2="226" y2="139" stroke="#58a6ff" stroke-width="1" opacity="0.4"/>
+          <line x1="250" y1="62" x2="247" y2="138" stroke="#58a6ff" stroke-width="1" opacity="0.4"/>
+          <line x1="270" y1="63" x2="268" y2="137" stroke="#58a6ff" stroke-width="1" opacity="0.4"/>
+          <text x="200" y="88" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">COMPRESSOR</text>
+          <text x="200" y="100" text-anchor="middle" fill="#58a6ff" font-size="10" font-weight="bold" font-family="sans-serif">17 Stages</text>
+          <text x="200" y="114" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">IGV → 17th Stage</text>
+
+          <!-- IGV probe -->
+          <circle cx="110" cy="105" r="4" fill="#a371f7" opacity="0.8"/>
+          <line x1="110" y1="101" x2="110" y2="55" stroke="#a371f7" stroke-width="1.5" stroke-dasharray="2,2"/>
+          <rect x="86" y="40" width="48" height="14" rx="3" fill="#161b22" stroke="#a371f7" stroke-width="1"/>
+          <text x="110" y="50" text-anchor="middle" fill="#a371f7" font-size="8" font-family="sans-serif">IGV (CSO)</text>
+
+          <!-- T2 probe -->
+          <circle cx="295" cy="105" r="4" fill="#e3873a" opacity="0.8"/>
+          <line x1="295" y1="101" x2="295" y2="55" stroke="#e3873a" stroke-width="1.5" stroke-dasharray="2,2"/>
+          <rect x="271" y="40" width="48" height="14" rx="3" fill="#161b22" stroke="#e3873a" stroke-width="1"/>
+          <text x="295" y="50" text-anchor="middle" fill="#e3873a" font-size="8" font-family="sans-serif">T2 Outlet</text>
+
+          <!-- ── COMBUSTOR ── -->
+          <rect x="320" y="65" width="160" height="70" rx="8" fill="#1c2128" stroke="#e3873a" stroke-width="1.5"/>
+          <!-- Flame symbol -->
+          <path d="M 390 90 Q 400 80 395 95 Q 405 85 398 100 Q 402 88 395 105 Q 385 95 390 90" fill="#e3873a" opacity="0.6"/>
+          <path d="M 405 90 Q 415 80 410 95 Q 420 85 413 100 Q 417 88 410 105 Q 400 95 405 90" fill="#d29922" opacity="0.5"/>
+          <text x="400" y="78" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">COMBUSTOR</text>
+          <text x="400" y="128" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">Fuel + Combustion Air</text>
+
+          <!-- Combustor Shell Pressure probe -->
+          <circle cx="400" cy="67" r="4" fill="#e3873a" opacity="0.9"/>
+          <line x1="400" y1="63" x2="400" y2="30" stroke="#e3873a" stroke-width="1.5" stroke-dasharray="2,2"/>
+          <rect x="356" y="16" width="88" height="14" rx="3" fill="#161b22" stroke="#e3873a" stroke-width="1"/>
+          <text x="400" y="26" text-anchor="middle" fill="#e3873a" font-size="8" font-family="sans-serif">Comb. Shell Press.</text>
+
+          <!-- Fuel input -->
+          <line x1="400" y1="135" x2="400" y2="170" stroke="#d29922" stroke-width="2"/>
+          <polygon points="396,165 400,178 404,165" fill="#d29922" opacity="0.8"/>
+          <rect x="336" y="155" width="128" height="18" rx="3" fill="#1c2128" stroke="#d29922" stroke-width="1"/>
+          <text x="400" y="168" text-anchor="middle" fill="#d29922" font-size="8" font-family="sans-serif">GT FUEL GAS FLOW (t/h)</text>
+
+          <!-- ── TURBINE ── -->
+          <rect x="500" y="58" width="200" height="84" rx="8" fill="#1c2128" stroke="#f85149" stroke-width="1.5"/>
+          <!-- Blade lines (reverse angle) -->
+          <line x1="530" y1="63" x2="542" y2="137" stroke="#f85149" stroke-width="1" opacity="0.4"/>
+          <line x1="558" y1="61" x2="567" y2="139" stroke="#f85149" stroke-width="1" opacity="0.4"/>
+          <line x1="586" y1="60" x2="592" y2="140" stroke="#f85149" stroke-width="1" opacity="0.4"/>
+          <line x1="614" y1="60" x2="617" y2="140" stroke="#f85149" stroke-width="1" opacity="0.4"/>
+          <line x1="642" y1="61" x2="643" y2="139" stroke="#f85149" stroke-width="1" opacity="0.4"/>
+          <line x1="670" y1="63" x2="669" y2="137" stroke="#f85149" stroke-width="1" opacity="0.4"/>
+          <text x="600" y="85" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">TURBINE</text>
+          <text x="600" y="97" text-anchor="middle" fill="#f85149" font-size="10" font-weight="bold" font-family="sans-serif">4 Stages</text>
+          <text x="600" y="110" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">Power Generation</text>
+          <text x="600" y="123" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">3,000 RPM / 50 Hz</text>
+
+          <!-- ── EXHAUST/EGT ── -->
+          <rect x="720" y="70" width="80" height="60" rx="6" fill="#161b22" stroke="#8b949e" stroke-width="1.5"/>
+          <text x="760" y="95" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">EXHAUST</text>
+          <text x="760" y="108" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">→ HRSG</text>
+
+          <!-- EGT probe -->
+          <circle cx="720" cy="100" r="5" fill="#f85149" opacity="0.9"/>
+          <line x1="720" y1="95" x2="720" y2="55" stroke="#f85149" stroke-width="1.5" stroke-dasharray="2,2"/>
+          <rect x="686" y="40" width="68" height="14" rx="3" fill="#161b22" stroke="#f85149" stroke-width="1"/>
+          <text x="720" y="50" text-anchor="middle" fill="#f85149" font-size="8" font-family="sans-serif">EGT (Exhaust)</text>
+
+          <!-- ── GENERATOR ── -->
+          <rect x="820" y="78" width="60" height="44" rx="6" fill="#161b22" stroke="#3fb950" stroke-width="1.5"/>
+          <text x="850" y="97" text-anchor="middle" fill="#8b949e" font-size="8" font-family="sans-serif">GEN.</text>
+          <text x="850" y="109" text-anchor="middle" fill="#3fb950" font-size="9" font-weight="bold" font-family="sans-serif">GT MW</text>
+
+          <!-- Shaft line -->
+          <line x1="200" y1="105" x2="500" y2="105" stroke="none"/>
+          <line x1="700" y1="105" x2="820" y2="100" stroke="#30363d" stroke-width="2" stroke-dasharray="6,3"/>
+
+          <!-- Barometric pressure indicator -->
+          <circle cx="50" cy="150" r="4" fill="#484f58" opacity="0.8"/>
+          <text x="60" y="153" fill="#484f58" font-size="8" font-family="sans-serif">Baro. Press.</text>
+        </svg>
+      </div>
+
+      <!-- Measurement points legend -->
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;padding:12px;background:var(--surface2);border-radius:8px;font-size:11px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#58a6ff;display:inline-block;"></span> T1 — Compressor Inlet Air Temperature</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#a371f7;display:inline-block;"></span> IGV CSO — Inlet Guide Vane Command Signal</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#e3873a;display:inline-block;"></span> T2 — Compressor Outlet Air Temperature</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#e3873a;display:inline-block;"></span> Combustor Shell Pressure</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#d29922;display:inline-block;"></span> Fuel Gas Flow (t/h)</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#f85149;display:inline-block;"></span> EGT — Exhaust Gas Temperature</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:10px;height:10px;border-radius:50%;background:#3fb950;display:inline-block;"></span> GT MW Output</span>
+      </div>
+    </div>
+
+    <!-- Parameter table — Latest Month Values -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div class="card">
+        <div class="card-title" data-th="Block 1 — ค่าล่าสุด (Median รายเดือน)" data-en="Block 1 — Latest Month Values (Median)">Block 1 — Latest Month Values (Median)</div>
+        <table class="param-table">
+          <thead>
+            <tr><th data-th="พารามิเตอร์" data-en="Parameter">Parameter</th><th data-th="ค่า" data-en="Value">Value</th><th>Unit</th></tr>
+          </thead>
+          <tbody id="b1-param-table">
+            <tr><td colspan="3" style="color:var(--text2);text-align:center;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-title" data-th="Block 2 — ค่าล่าสุด (Median รายเดือน)" data-en="Block 2 — Latest Month Values (Median)">Block 2 — Latest Month Values (Median)</div>
+        <table class="param-table">
+          <thead>
+            <tr><th data-th="พารามิเตอร์" data-en="Parameter">Parameter</th><th data-th="ค่า" data-en="Value">Value</th><th>Unit</th></tr>
+          </thead>
+          <tbody id="b2-param-table">
+            <tr><td colspan="3" style="color:var(--text2);text-align:center;">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Static info box -->
+    <div class="card" style="margin-top:14px;">
+      <div class="card-title" data-th="ข้อมูลเครื่องจักร" data-en="Machine Specifications">Machine Specifications</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;">
+        <div class="param-box"><div class="label">Manufacturer</div><div class="val" style="font-size:14px;">Mitsubishi</div><div class="sub">M701J Series</div></div>
+        <div class="param-box"><div class="label">Configuration</div><div class="val" style="font-size:14px;">Single-Shaft</div><div class="sub">GT + ST on same shaft (No)</div></div>
+        <div class="param-box"><div class="label">Speed</div><div class="val">3,000 <span style="font-size:13px;color:var(--text2);">RPM</span></div><div class="sub">50 Hz grid</div></div>
+        <div class="param-box"><div class="label">Fuel</div><div class="val" style="font-size:14px;">Natural Gas</div><div class="sub">Pipeline quality</div></div>
+        <div class="param-box"><div class="label">Compressor</div><div class="val" style="font-size:14px;">17 Stages</div><div class="sub">Axial flow</div></div>
+        <div class="param-box"><div class="label">Turbine</div><div class="val" style="font-size:14px;">4 Stages</div><div class="sub">High firing temp</div></div>
+        <div class="param-box"><div class="label">Exhaust → HRSG</div><div class="val" style="font-size:14px;">EGT</div><div class="sub">Waste heat recovery</div></div>
+        <div class="param-box"><div class="label">Blocks</div><div class="val" style="font-size:14px;">B1 + B2</div><div class="sub">2 identical units</div></div>
+      </div>
+    </div>
+
+  </div><!-- /tab-machine -->
+
+</div><!-- /main-content -->
 
 <script>
-// ════════════════════════════════════════════════
-//  BLADE GENERATION
-// ════════════════════════════════════════════════
+// ─── Constants ────────────────────────────────────────────────────────────────
+const BLUE = '#58a6ff', RED = '#f85149', GREEN = '#3fb950';
+const YELLOW = '#d29922', ORANGE = '#e3873a', PURPLE = '#a371f7';
+const GRID = 'rgba(48,54,61,0.6)';
+const chartInstances = {};
 
-const NS = 'http://www.w3.org/2000/svg';
-
-function makeBlade(cx, cy, rx, ry, angleDeg, fill, stroke, sw) {
-  const el = document.createElementNS(NS, 'ellipse');
-  el.setAttribute('cx', cx);
-  el.setAttribute('cy', cy);
-  el.setAttribute('rx', rx);
-  el.setAttribute('ry', ry);
-  el.setAttribute('transform', `rotate(${angleDeg},${cx},${cy})`);
-  el.setAttribute('fill', fill);
-  el.setAttribute('stroke', stroke);
-  el.setAttribute('stroke-width', sw || 0.5);
-  return el;
-}
-
-function lerp(a, b, t) { return a + (b - a) * t; }
-
-// ── IGV (8 blades, large angle representing variable guide vanes) ──
-function drawIGV() {
-  const g = document.getElementById('igv-blades');
-  const n = 8;
-  const x = 121;
-  const yTop = 107, yBot = 295;  // inside casing at IGV section
-  const yHubTop = 165, yHubBot = 235;
-  // Blades span from hub to outer casing, upper and lower annulus
-  const bladeAngle = 30; // IGV set angle
-  const bladeRx = 20, bladeRy = 1.8;
-  const allY = [yTop+10, yTop+32, yTop+54, yHubTop-10, yHubBot+10, yBot-54, yBot-32, yBot-10];
-  allY.forEach(cy => {
-    g.appendChild(makeBlade(x, cy, bladeRx, bladeRy, bladeAngle, '#3a6090', '#58a6ff', 0.7));
-  });
-}
-
-// ── Compressor blades (17 stages, alternating rotor/stator) ──
-function drawCompressorBlades() {
-  const g = document.getElementById('comp-blades');
-  const stages = 17;
-  const xStart = 150, xEnd = 490;
-  const dx = (xEnd - xStart) / stages;
-
-  for (let i = 0; i < stages; i++) {
-    const t = i / (stages - 1);
-    // Casing boundaries (tapered): top from 107 to 134, bottom from 293 to 266
-    const yCasTop = lerp(107, 134, t);
-    const yCasBot = lerp(293, 266, t);
-    // Hub boundaries: top from 165 to 174, bottom from 235 to 226
-    const yHubTop = lerp(165, 174, t);
-    const yHubBot = lerp(235, 226, t);
-
-    const xCenter = xStart + i * dx + dx * 0.5;
-    const isRotor = (i % 2 === 0);
-
-    // Blade chord decreases with stage (axial velocity ratio)
-    const rx = lerp(14, 8, t);
-    const ry = lerp(1.8, 1.3, t);
-    const angle = isRotor ? 52 : -42;
-    const fill  = isRotor ? '#3a5a8a' : '#2e4a78';
-    const stroke = isRotor ? '#5888c0' : '#4a78b0';
-
-    // Number of blades visible per row (more at larger diameter, fewer at smaller)
-    const nTop = 4; // blades in upper annulus
-    const nBot = 4; // blades in lower annulus
-
-    // Upper annulus
-    for (let j = 0; j < nTop; j++) {
-      const cy = lerp(yCasTop + rx * 0.6, yHubTop - rx * 0.4, (j + 0.5) / nTop);
-      g.appendChild(makeBlade(xCenter, cy, rx, ry, angle, fill, stroke, 0.5));
-    }
-    // Lower annulus
-    for (let j = 0; j < nBot; j++) {
-      const cy = lerp(yHubBot + rx * 0.4, yCasBot - rx * 0.6, (j + 0.5) / nBot);
-      g.appendChild(makeBlade(xCenter, cy, rx, ry, angle, fill, stroke, 0.5));
-    }
-
-    // Stage number label (every 4 stages)
-    if (i % 4 === 0 && i > 0) {
-      const txt = document.createElementNS(NS, 'text');
-      txt.setAttribute('x', xCenter);
-      txt.setAttribute('y', yCasTop - 4);
-      txt.setAttribute('fill', '#4a5878');
-      txt.setAttribute('font-size', '7');
-      txt.setAttribute('text-anchor', 'middle');
-      txt.setAttribute('font-family', "'Segoe UI',sans-serif");
-      txt.textContent = `S${i+1}`;
-      g.appendChild(txt);
-    }
-  }
-}
-
-// ── Turbine blades (4 stages, larger chord, hotter colors) ──
-function drawTurbineBlades() {
-  const g = document.getElementById('turb-blades');
-  const stages = 4;
-  const xStart = 648, xEnd = 828;
-  const dx = (xEnd - xStart) / stages;
-
-  // Colors by stage (1=hottest, 4=cooler)
-  const stageColors = [
-    { fill: '#7a3520', stroke: '#c05830' }, // Stage 1 - hottest
-    { fill: '#6a2c18', stroke: '#a84820' },
-    { fill: '#5a2410', stroke: '#904018' },
-    { fill: '#4a1c0c', stroke: '#783010' }, // Stage 4
-  ];
-
-  for (let i = 0; i < stages; i++) {
-    const t = i / (stages - 1);
-    // Casing: top 110 → 94, bottom 290 → 306
-    const yCasTop = lerp(110, 94, t);
-    const yCasBot = lerp(290, 306, t);
-    // Hub: top 174 → 182, bottom 226 → 218
-    const yHubTop = lerp(174, 182, t);
-    const yHubBot = lerp(226, 218, t);
-
-    const xCenter = xStart + i * dx + dx * 0.5;
-    const isNozzle = (i % 2 === 0); // nozzles alternate with rotors (simplified)
-    const rx = lerp(18, 22, t);   // turbine blades get bigger
-    const ry = lerp(2.8, 3.5, t);
-    const angle = isNozzle ? -52 : 58;
-    const { fill, stroke } = stageColors[i];
-
-    const nBlades = 3;
-
-    // Upper annulus
-    for (let j = 0; j < nBlades; j++) {
-      const cy = lerp(yCasTop + rx * 0.5, yHubTop - rx * 0.3, (j + 0.5) / nBlades);
-      g.appendChild(makeBlade(xCenter, cy, rx, ry, angle, fill, stroke, 0.6));
-    }
-    // Lower annulus
-    for (let j = 0; j < nBlades; j++) {
-      const cy = lerp(yHubBot + rx * 0.3, yCasBot - rx * 0.5, (j + 0.5) / nBlades);
-      g.appendChild(makeBlade(xCenter, cy, rx, ry, angle, fill, stroke, 0.6));
-    }
-
-    // Stage label
-    const txt = document.createElementNS(NS, 'text');
-    txt.setAttribute('x', xCenter);
-    txt.setAttribute('y', yCasTop - 4);
-    txt.setAttribute('fill', '#6a4838');
-    txt.setAttribute('font-size', '8');
-    txt.setAttribute('text-anchor', 'middle');
-    txt.setAttribute('font-family', "'Segoe UI',sans-serif");
-    txt.textContent = `T${i + 1}`;
-    g.appendChild(txt);
-  }
-}
-
-drawIGV();
-drawCompressorBlades();
-drawTurbineBlades();
-
-// ════════════════════════════════════════════════
-//  GAUGES
-// ════════════════════════════════════════════════
-
-function makeGauge(id, value, min, max, color) {
-  const pct = Math.min(Math.max((value - min) / (max - min), 0), 1);
-  new Chart(document.getElementById(id), {
-    type: 'doughnut',
-    data: {
-      datasets: [{
-        data: [pct * 180, (1 - pct) * 180, 180],
-        backgroundColor: [color, '#21262d', 'transparent'],
-        borderWidth: 0, circumference: 180, rotation: -90,
-      }]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false, cutout: '74%',
-      plugins: { legend: { display: false }, tooltip: { enabled: false } },
-      animation: { duration: 900, easing: 'easeOutQuart' }
-    }
-  });
-}
-
-makeGauge('gRPM',  3000,  0,    3600, '#3fb950');
-makeGauge('gMW',   300.5, 0,    340,  '#58a6ff');
-makeGauge('gHR',   7842,  7500, 8500, '#d29922');
-makeGauge('gPR',   23.1,  0,    30,   '#e6edf3');
-makeGauge('gEGT',  612.8, 400,  700,  '#e3873a');
-
-// ════════════════════════════════════════════════
-//  MODAL / CHART
-// ════════════════════════════════════════════════
-
-const hrs = Array.from({length:24}, (_,i) => `${String(i).padStart(2,'0')}:00`);
-
-const paramData = {
-  t1: {
-    title:'Inlet Air Temperature (T1)', unit:'°C', val:'28.4',
-    min:'22.1 °C', avg:'26.8 °C', max:'31.2 °C',
-    values:[24.2,23.8,23.5,23.1,22.9,22.8,22.8,23.1,24.4,25.8,27.1,28.2,
-            29.5,30.1,31.2,30.8,30.2,29.6,28.9,28.4,27.8,27.1,26.5,26.0],
-    limit:null, color:'#58a6ff',
-  },
-  igv: {
-    title:'IGV / VIGV Angle', unit:'°', val:'86.2',
-    min:'78.0 °', avg:'84.1 °', max:'87.5 °',
-    values:[82,83,83,84,84,85,85,85,85,85,86,86,86,86,87,87,87,87,87,86,86,86,86,86],
-    limit:88, color:'#58a6ff',
-  },
-  t2p2: {
-    title:'Compressor Discharge Temp (T2)', unit:'°C', val:'425.1',
-    min:'418.0 °C', avg:'422.4 °C', max:'428.3 °C',
-    values:[418,419,420,420,421,421,422,422,422,423,424,424,425,425,
-            426,426,427,427,427,427,426,426,426,425],
-    limit:440, color:'#a78bfa',
-  },
-  fuel: {
-    title:'Fuel Gas Flow', unit:'MMSCFD', val:'24.92',
-    min:'23.8', avg:'24.3', max:'24.92',
-    values:[23.8,23.9,24.0,24.0,24.1,24.2,24.2,24.1,24.1,24.2,24.3,24.4,
-            24.5,24.6,24.7,24.7,24.8,24.8,24.9,24.9,24.92,24.92,24.91,24.90],
-    limit:24.5, color:'#e3873a',
-  },
-  t3: {
-    title:'Turbine Inlet Temperature (T3)', unit:'°C', val:'1,350',
-    min:'1,302 °C', avg:'1,335 °C', max:'1,358 °C',
-    values:[1302,1308,1315,1318,1322,1325,1330,1332,1335,1338,1340,1342,
-            1345,1348,1350,1352,1355,1356,1358,1355,1350,1348,1345,1342],
-    limit:1400, color:'#f85149',
-  },
-  egt: {
-    title:'Exhaust Gas Temperature (EGT)', unit:'°C', val:'612.8',
-    min:'598.2 °C', avg:'607.4 °C', max:'616.0 °C',
-    values:[598,600,602,603,604,605,606,607,608,609,610,611,612,613,
-            614,615,616,615,614,613,613,612,612,612],
-    limit:640, color:'#e3873a',
-  },
-  nox: {
-    title:'NOx Emission', unit:'ppm', val:'18.2',
-    min:'15.8 ppm', avg:'17.6 ppm', max:'20.1 ppm',
-    values:[18.5,18.2,18.0,17.8,17.6,17.4,17.2,17.0,16.8,16.5,16.2,16.0,
-            15.8,16.0,16.5,17.0,17.5,18.0,18.5,19.0,19.5,20.1,19.8,18.2],
-    limit:25, color:'#3fb950',
-  },
+// Outage annotations
+const b1OutageAnnotation = {
+  type: 'box',
+  xScaleID: 'x',
+  yScaleID: 'y',
+  xMin: -0.5, xMax: 0.5,
+  backgroundColor: 'rgba(88,166,255,0.06)',
+  borderColor: 'rgba(88,166,255,0.25)',
+  borderWidth: 1,
+  label: { display: true, content: 'B1 Outage', color: BLUE, font: { size: 9, weight: '600' }, position: { x: 'center', y: 'start' } }
+};
+const b2OutageAnnotation = {
+  type: 'box',
+  xScaleID: 'x',
+  yScaleID: 'y',
+  xMin: -0.5, xMax: 0.5,
+  backgroundColor: 'rgba(248,81,73,0.06)',
+  borderColor: 'rgba(248,81,73,0.25)',
+  borderWidth: 1,
+  label: { display: true, content: 'B2 Outage', color: RED, font: { size: 9, weight: '600' }, position: { x: 'center', y: 'end' } }
 };
 
-let modalChart = null;
+function ds(label, data, color, dash) {
+  return {
+    label, data,
+    borderColor: color, backgroundColor: color + '22',
+    borderWidth: 2, pointRadius: 3, pointHoverRadius: 5,
+    tension: 0.35, fill: false,
+    borderDash: dash || [],
+    spanGaps: true
+  };
+}
 
-function openModal(key) {
-  const d = paramData[key];
-  if (!d) return;
-  document.getElementById('modal-title').textContent = d.title;
-  document.getElementById('modal-val').textContent = d.val;
-  document.getElementById('modal-unit').textContent = d.unit;
-  document.getElementById('stat-min').textContent = d.min;
-  document.getElementById('stat-avg').textContent = d.avg;
-  document.getElementById('stat-max').textContent = d.max;
-  document.getElementById('modal').classList.add('open');
-
-  if (modalChart) { modalChart.destroy(); modalChart = null; }
-
-  const datasets = [{
-    label: d.title,
-    data: d.values,
-    borderColor: d.color,
-    backgroundColor: d.color + '18',
-    fill: true, tension: 0.38, borderWidth: 2,
-    pointRadius: 2.5, pointHoverRadius: 5,
-    pointBackgroundColor: d.color,
-  }];
-
-  if (d.limit) {
-    datasets.push({
-      label: 'Alarm Limit',
-      data: Array(d.values.length).fill(d.limit),
-      borderColor: '#f85149', borderDash: [6, 4],
-      borderWidth: 1.5, pointRadius: 0, fill: false,
-    });
-  }
-
-  modalChart = new Chart(document.getElementById('modal-chart'), {
+function makeChart(id, labels, datasets, yLabel, annotations) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); }
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  chartInstances[id] = new Chart(ctx, {
     type: 'line',
-    data: { labels: hrs, datasets },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: !!d.limit, labels: { color: '#8b949e', font: { size: 11 }, boxWidth: 16 } },
+        legend: { display: false },
         tooltip: {
-          backgroundColor: '#1c2128', borderColor: '#30363d', borderWidth: 1,
-          titleColor: '#e6edf3', bodyColor: '#8b949e',
-        }
+          backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1,
+          titleColor: '#e6edf3', bodyColor: '#8b949e', padding: 10,
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 1 }) : '—'} ${yLabel}`
+          }
+        },
+        annotation: { annotations: annotations || {} }
       },
       scales: {
-        x: { ticks: { color: '#8b949e', font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: '#21262d' } },
-        y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } }
+        x: { grid: { color: GRID }, ticks: { color: '#8b949e', font: { size: 10 }, maxRotation: 45 } },
+        y: { grid: { color: GRID }, ticks: { color: '#8b949e', font: { size: 10 } }, title: { display: true, text: yLabel, color: '#484f58', font: { size: 10 } } }
       }
     }
   });
 }
 
-function closeModal() {
-  document.getElementById('modal').classList.remove('open');
+function fmt1(v) { return v != null ? v.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '—'; }
+function fmt0(v) { return v != null ? Math.round(v).toLocaleString() : '—'; }
+function fmtLast(arr) { if (!arr) return null; const vals = arr.filter(v => v != null); return vals.length ? vals[vals.length - 1] : null; }
+
+// ─── Build charts from GT data ─────────────────────────────────────────────
+function initGTCharts(G, kpi, meta) {
+  const lbl = G.gt_mw.months;
+
+  // Compute B2 outage index (Apr 2026)
+  const b2Idx = lbl.indexOf('2026-04');
+  const b2Anno = b2Idx >= 0 ? {
+    b2out: { ...b2OutageAnnotation, xMin: b2Idx - 0.5, xMax: b2Idx + 0.5 }
+  } : {};
+
+  // Compute B1 outage index (Jul 2025)
+  const b1Idx = lbl.indexOf('2025-07');
+  const bothAnno = {
+    ...(b1Idx >= 0 ? { b1out: { ...b1OutageAnnotation, xMin: b1Idx - 0.5, xMax: b1Idx + 0.5 } } : {}),
+    ...b2Anno
+  };
+
+  // 1. GT Heat Rate
+  makeChart('chart-gt-hr', lbl,
+    [ds('B1 GT HR', G.gt_hr.b1, BLUE), ds('B2 GT HR', G.gt_hr.b2, RED)],
+    'BTU/kWh', bothAnno);
+
+  // 2. GT MW
+  makeChart('chart-gt-mw', lbl,
+    [ds('B1 GT MW', G.gt_mw.b1, BLUE), ds('B2 GT MW', G.gt_mw.b2, RED)],
+    'MW', bothAnno);
+
+  // 3. EGT
+  makeChart('chart-egt', lbl,
+    [ds('B1 EGT', G.exhaust_temp.b1, BLUE), ds('B2 EGT', G.exhaust_temp.b2, RED)],
+    '°C', bothAnno);
+
+  // 4. Fuel Flow
+  makeChart('chart-fuel-flow', lbl,
+    [ds('B1 Fuel', G.fuel_flow.b1, BLUE), ds('B2 Fuel', G.fuel_flow.b2, RED)],
+    't/h', b2Anno);
+
+  // 5. Combustor Shell Pressure
+  makeChart('chart-comb-press', lbl,
+    [ds('B1 Comb. Press.', G.comb_shell_press.b1, BLUE), ds('B2 Comb. Press.', G.comb_shell_press.b2, RED)],
+    'bar', b2Anno);
+
+  // 6. Compressor Inlet Temp (T1)
+  makeChart('chart-comp-inlet-temp', lbl,
+    [ds('B1 T1', G.comp_inlet_temp.b1, BLUE), ds('B2 T1', G.comp_inlet_temp.b2, RED)],
+    '°C', b2Anno);
+
+  // 7. IGVCSO
+  makeChart('chart-igvcso', lbl,
+    [ds('B1 IGV', G.igvcso.b1, BLUE), ds('B2 IGV', G.igvcso.b2, RED)],
+    '%', b2Anno);
+
+  // 8. Compressor Outlet Temp (T2)
+  makeChart('chart-comp-outlet-temp', lbl,
+    [ds('B1 T2', G.comp_outlet_temp.b1, BLUE), ds('B2 T2', G.comp_outlet_temp.b2, RED)],
+    '°C', b2Anno);
+
+  // ── KPI Cards ──
+  const b1EGT = fmtLast(G.exhaust_temp.b1);
+  const b2EGT = fmtLast(G.exhaust_temp.b2);
+
+  // GT HR — lower is better
+  const b1HR = kpi.b1.hr_gt, b2HR = kpi.b2.hr_gt;
+  document.getElementById('kpi-b1-gt-hr').textContent = b1HR != null ? Math.round(b1HR).toLocaleString() : '—';
+  document.getElementById('kpi-b2-gt-hr').textContent = b2HR != null ? Math.round(b2HR).toLocaleString() : '—';
+  document.getElementById('kpi-b1-gt-hr').textContent = b1HR != null ? Math.round(b1HR).toLocaleString() : '—';
+  document.getElementById('kpi-b2-gt-hr').textContent = b2HR != null ? Math.round(b2HR).toLocaleString() : '—';
+
+  // Set KPI period badge
+  const period = kpi.period || '';
+  document.querySelectorAll('.kpi-badge.neutral').forEach(el => { el.textContent = period; });
+
+  // EGT KPIs
+  document.getElementById('kpi-b1-egt').textContent = b1EGT != null ? fmt1(b1EGT) : '—';
+  document.getElementById('kpi-b2-egt').textContent = b2EGT != null ? fmt1(b2EGT) : '—';
+
+  // ── Subtitle: data range ──
+  if (meta && meta.date_range) {
+    document.getElementById('gt-subtitle').textContent =
+      `Single-Shaft · Natural Gas · Data: ${meta.date_range.from} → ${meta.date_range.to}`;
+  }
+
+  // ── Data info footer ──
+  const genAt = meta && meta.generated_at ? new Date(meta.generated_at).toLocaleString() : '—';
+  document.getElementById('gt-data-info').textContent =
+    `Data generated: ${genAt} | B1: ${(meta.b1_rows || 0).toLocaleString()} rows | B2: ${(meta.b2_rows || 0).toLocaleString()} rows`;
+
+  // ── Machine tab: param tables ──
+  buildParamTable('b1-param-table', G, kpi.b1, 'b1', lbl);
+  buildParamTable('b2-param-table', G, kpi.b2, 'b2', lbl);
 }
 
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+function buildParamTable(tbodyId, G, kpiBlock, block, lbl) {
+  const tbody = document.getElementById(tbodyId);
+  if (!tbody) return;
+
+  const getLatest = (series) => {
+    const arr = series[block];
+    if (!arr) return null;
+    const filtered = arr.filter(v => v != null);
+    return filtered.length ? filtered[filtered.length - 1] : null;
+  };
+
+  const params = [
+    { name: 'GT Output', val: kpiBlock.gt_mw, unit: 'MW', decimals: 1 },
+    { name: 'GT Heat Rate', val: kpiBlock.hr_gt, unit: 'BTU/kWh', decimals: 0 },
+    { name: 'EGT (Exhaust)', val: getLatest(G.exhaust_temp), unit: '°C', decimals: 1 },
+    { name: 'Fuel Gas Flow', val: getLatest(G.fuel_flow), unit: 't/h', decimals: 1 },
+    { name: 'Combustor Shell Press.', val: getLatest(G.comb_shell_press), unit: 'bar', decimals: 2 },
+    { name: 'Comp. Inlet Temp (T1)', val: getLatest(G.comp_inlet_temp), unit: '°C', decimals: 1 },
+    { name: 'Comp. Outlet Temp (T2)', val: getLatest(G.comp_outlet_temp), unit: '°C', decimals: 1 },
+    { name: 'IGV Command (IGVCSO)', val: getLatest(G.igvcso), unit: '%', decimals: 1 },
+    { name: 'Barometric Pressure', val: getLatest(G.baro_press), unit: 'mbar', decimals: 1 },
+  ];
+
+  tbody.innerHTML = params.map(p => {
+    const v = p.val != null ? p.val.toLocaleString(undefined, { minimumFractionDigits: p.decimals, maximumFractionDigits: p.decimals }) : '—';
+    return `<tr><td style="color:var(--text2);">${p.name}</td><td style="font-weight:700;">${v}</td><td style="color:var(--text3);">${p.unit}</td></tr>`;
+  }).join('');
+}
+
+// ─── Tab switching ─────────────────────────────────────────────────────────
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.querySelector(`[data-tab="${tabId}"]`).classList.add('active');
+  document.getElementById(`tab-${tabId}`).classList.add('active');
+}
+
+// ─── Language toggle ───────────────────────────────────────────────────────
+function setLang(lang) {
+  document.documentElement.setAttribute('data-lang', lang);
+  document.getElementById('btn-th').classList.toggle('active', lang === 'th');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.querySelectorAll('[data-th]').forEach(el => {
+    el.textContent = lang === 'th' ? el.getAttribute('data-th') : el.getAttribute('data-en');
+  });
+}
+
+// ─── Load data.json ────────────────────────────────────────────────────────
+fetch('data.json')
+  .then(r => r.json())
+  .then(json => {
+    if (json && json.gt && json.kpi) {
+      initGTCharts(json.gt, json.kpi, json.meta || {});
+    } else {
+      document.getElementById('gt-data-info').textContent = '⚠ data.json loaded but missing gt section — run generate_data.py';
+    }
+  })
+  .catch(err => {
+    document.getElementById('gt-data-info').textContent = '⚠ Could not load data.json: ' + err.message;
+  });
+
+// Init language
+setLang('en');
 </script>
 </body>
 </html>
