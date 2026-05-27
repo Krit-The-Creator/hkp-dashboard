@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GT Prototype C — Isometric Cutaway</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0d1117;--surface:#161b22;--surface2:#1c2128;
+    --border:#30363d;--text:#e6edf3;--text2:#8b949e;
+    --green:#3fb950;--yellow:#d29922;--red:#f85149;
+    --blue:#58a6ff;--orange:#e3873a;--accent:#1f6feb;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;display:flex;flex-direction:column}
+  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 24px;display:flex;align-items:center;gap:16px}
+  .dot-live{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);animation:lp 2s ease infinite}
+  @keyframes lp{0%,100%{opacity:1}50%{opacity:.4}}
+  .main{display:grid;grid-template-columns:1fr 252px;gap:14px;flex:1;padding:14px 18px}
+  .diagram-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;position:relative;overflow:hidden}
+  .panel-title{font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+  #gt-wrap{position:relative;width:100%}
+  #gt-wrap svg{width:100%;height:auto;display:block}
+
+  /* Hotspots */
+  .hs{position:absolute;width:20px;height:20px;border-radius:50%;background:rgba(31,111,235,.2);border:1.5px solid var(--blue);cursor:pointer;transform:translate(-50%,-50%);display:flex;align-items:center;justify-content:center;z-index:10;transition:background .2s}
+  .hs::after{content:'';position:absolute;width:100%;height:100%;border-radius:50%;border:1.5px solid var(--blue);animation:rp 2.2s ease-out infinite}
+  .hs.alarm{border-color:var(--yellow);background:rgba(210,153,34,.15)}
+  .hs.alarm::after{border-color:var(--yellow)}
+  .hs:hover{background:rgba(31,111,235,.45);transform:translate(-50%,-50%) scale(1.15)}
+  .hs-icon{font-size:10px;font-weight:800;color:var(--blue);pointer-events:none}
+  .hs.alarm .hs-icon{color:var(--yellow)}
+  @keyframes rp{0%{transform:scale(1);opacity:.7}100%{transform:scale(2.4);opacity:0}}
+
+  /* Labels */
+  .pl{position:absolute;background:rgba(13,17,23,.9);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:10px;pointer-events:none;white-space:nowrap;z-index:9;backdrop-filter:blur(6px)}
+  .pl .pn{color:var(--text2);display:block;font-size:9px;line-height:1.2}
+  .pl .pv{color:var(--text);font-weight:700;font-size:12px}
+  .pl .pu{color:var(--text2);font-size:9px;margin-left:2px}
+  .pl.alarm .pv{color:var(--yellow)}
+
+  /* Gauges */
+  .gauge-row{display:flex;gap:8px;margin-top:10px}
+  .gc{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center}
+  .gv{font-size:16px;font-weight:700}
+  .gu{font-size:10px;color:var(--text2)}
+
+  /* Right */
+  .right-col{display:flex;flex-direction:column;gap:12px}
+  .kpi-panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px}
+  .pr{display:flex;align-items:center;padding:6px 4px;border-bottom:1px solid var(--border);cursor:pointer;border-radius:4px;transition:background .15s;gap:7px}
+  .pr:last-child{border-bottom:none}
+  .pr:hover{background:rgba(255,255,255,.04)}
+  .pr:hover .prn{color:var(--blue)}
+  .prd{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+  .prn{flex:1;font-size:11px;color:var(--text2)}
+  .prv{font-size:13px;font-weight:700}
+  .pru{font-size:9px;color:var(--text2);margin-left:2px}
+  .ok{color:var(--green)}.alarm-c{color:var(--yellow)}
+  .tu{color:var(--green);font-size:10px}.td{color:var(--red);font-size:10px}
+
+  /* Modal */
+  .mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:100;align-items:center;justify-content:center;backdrop-filter:blur(5px)}
+  .mo.open{display:flex}
+  .md{background:var(--surface2);border:1px solid var(--border);border-radius:12px;width:540px;max-width:95vw;padding:20px;box-shadow:0 28px 70px rgba(0,0,0,.7)}
+  .mh{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .mt{font-size:14px;font-weight:600;flex:1}
+  .mb{font-size:20px;font-weight:700;color:var(--blue)}
+  .mc{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text2);width:26px;height:26px;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center}
+  .mc:hover{background:var(--border);color:var(--text)}
+  .ms{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+  .sb{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;text-align:center}
+  .sl{font-size:10px;color:var(--text2)}.sv{font-size:13px;font-weight:700}
+  .mcw{height:190px;position:relative}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div>
+    <div style="font-size:15px;font-weight:600">Gas Turbine — Block 1 (GT-B1) &nbsp;<span style="color:var(--text2);font-weight:400;font-size:13px">Mitsubishi M701J · Isometric View</span></div>
+    <div style="font-size:12px;color:var(--text2)">Single-Shaft · 320 MW Class · Natural Gas</div>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px">
+    <div class="dot-live"></div>
+    <span style="color:var(--green);font-size:12px;font-weight:600">RUNNING</span>
+    <span style="color:var(--text2);font-size:11px">08:45 น.</span>
+    <span style="color:var(--text2);font-size:11px;border-left:1px solid var(--border);padding-left:10px">Style C — Isometric Cutaway</span>
+  </div>
+</div>
+
+<div class="main">
+
+<div class="diagram-panel">
+  <div class="panel-title">M701J Isometric Cutaway — มุมมอง 3/4 จากด้านบน · คลิกจุดสีน้ำเงินดู Trend</div>
+
+  <div id="gt-wrap">
+  <svg id="gt-svg" viewBox="0 0 1000 430" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Interior zone gradients -->
+    <linearGradient id="zgInlet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0d1e38"/>
+      <stop offset="100%" stop-color="#0a1828"/>
+    </linearGradient>
+    <linearGradient id="zgComp" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0e1d40"/>
+      <stop offset="60%" stop-color="#16184a"/>
+      <stop offset="100%" stop-color="#20104a"/>
+    </linearGradient>
+    <linearGradient id="zgComb" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3a1005"/>
+      <stop offset="50%" stop-color="#541808"/>
+      <stop offset="100%" stop-color="#3a1005"/>
+    </linearGradient>
+    <linearGradient id="zgTurb" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3a1005"/>
+      <stop offset="100%" stop-color="#200d04"/>
+    </linearGradient>
+    <linearGradient id="zgExh" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a0e06"/>
+      <stop offset="100%" stop-color="#0d0a06"/>
+    </linearGradient>
+
+    <!-- Metallic gradients for casing surfaces -->
+    <linearGradient id="gCasNear" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a5568"/>
+      <stop offset="30%" stop-color="#6a7585"/>
+      <stop offset="70%" stop-color="#4a525e"/>
+      <stop offset="100%" stop-color="#2d3340"/>
+    </linearGradient>
+    <linearGradient id="gCasTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5a6275"/>
+      <stop offset="100%" stop-color="#3a4050"/>
+    </linearGradient>
+    <linearGradient id="gInletFace" cx="50%" cy="50%" r="50%" id="gInletFace" gradientUnits="objectBoundingBox">
+      <stop offset="0%" stop-color="#1a2840"/>
+      <stop offset="100%" stop-color="#0a1020"/>
+    </linearGradient>
+    <radialGradient id="gInletFaceR" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1a2840"/>
+      <stop offset="80%" stop-color="#0e1828"/>
+      <stop offset="100%" stop-color="#0a1020"/>
+    </radialGradient>
+    <radialGradient id="gExhFaceR" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#2a1005"/>
+      <stop offset="70%" stop-color="#1a0808"/>
+      <stop offset="100%" stop-color="#0d0506"/>
+    </radialGradient>
+    <linearGradient id="gHub" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#252e3a"/>
+      <stop offset="50%" stop-color="#3a4555"/>
+      <stop offset="100%" stop-color="#252e3a"/>
+    </linearGradient>
+    <linearGradient id="gShaft" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#4a5565"/>
+      <stop offset="50%" stop-color="#707a8a"/>
+      <stop offset="100%" stop-color="#4a5565"/>
+    </linearGradient>
+    <linearGradient id="gRim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7a8898"/>
+      <stop offset="100%" stop-color="#4a5565"/>
+    </linearGradient>
+    <linearGradient id="gVIGV" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a4060" stop-opacity=".8"/>
+      <stop offset="100%" stop-color="#1a4060" stop-opacity=".2"/>
+    </linearGradient>
+
+    <!-- Flame glow -->
+    <radialGradient id="gFlameA" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffb040" stop-opacity=".7"/>
+      <stop offset="40%" stop-color="#e06020" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#901000" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Filters -->
+    <filter id="fGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="fMetal">
+      <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#000" flood-opacity=".5"/>
+    </filter>
+    <filter id="fInnerShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="2" dy="3" stdDeviation="5" flood-color="#000" flood-opacity=".6"/>
+    </filter>
+
+    <!-- Clip path: interior pan -->
+    <clipPath id="cpInt">
+      <polygon points="82,372 918,372 968,188 132,188"/>
+    </clipPath>
+    <!-- Clip: compressor zone -->
+    <clipPath id="cpComp">
+      <polygon points="156,372 458,372 508,188 206,188"/>
+    </clipPath>
+    <!-- Clip: combustor zone -->
+    <clipPath id="cpComb">
+      <polygon points="458,372 593,372 643,188 508,188"/>
+    </clipPath>
+    <!-- Clip: turbine zone -->
+    <clipPath id="cpTurb">
+      <polygon points="593,372 786,372 836,188 643,188"/>
+    </clipPath>
+    <!-- Clip: inlet zone -->
+    <clipPath id="cpInlet">
+      <polygon points="82,372 156,372 206,188 132,188"/>
+    </clipPath>
+    <!-- Clip: exhaust zone -->
+    <clipPath id="cpExh">
+      <polygon points="786,372 918,372 968,188 836,188"/>
+    </clipPath>
+    <!-- Clip: VIGV (stages 1-4 of compressor) -->
+    <clipPath id="cpVIGV">
+      <polygon points="156,372 238,372 288,188 206,188"/>
+    </clipPath>
+  </defs>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- BACKGROUND                             -->
+  <!-- ══════════════════════════════════════ -->
+  <rect width="1000" height="430" fill="#0d1117"/>
+
+  <!-- Subtle grid (engineering drawing feel) -->
+  <g stroke="#1a1f28" stroke-width="0.5" opacity="0.5">
+    <line x1="0" y1="100" x2="1000" y2="100"/>
+    <line x1="0" y1="200" x2="1000" y2="200"/>
+    <line x1="0" y1="300" x2="1000" y2="300"/>
+    <line x1="0" y1="400" x2="1000" y2="400"/>
+    <line x1="200" y1="0" x2="200" y2="430"/>
+    <line x1="400" y1="0" x2="400" y2="430"/>
+    <line x1="600" y1="0" x2="600" y2="430"/>
+    <line x1="800" y1="0" x2="800" y2="430"/>
+  </g>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- INTERIOR PAN — Zone fills              -->
+  <!-- ══════════════════════════════════════ -->
+
+  <!-- Base interior fill -->
+  <polygon points="82,372 918,372 968,188 132,188" fill="#0e1520"/>
+
+  <!-- Inlet zone -->
+  <polygon points="82,372 156,372 206,188 132,188" fill="url(#zgInlet)" clip-path="url(#cpInt)"/>
+  <!-- Compressor zone -->
+  <polygon points="156,372 458,372 508,188 206,188" fill="url(#zgComp)" clip-path="url(#cpInt)"/>
+  <!-- Combustor zone -->
+  <polygon points="458,372 593,372 643,188 508,188" fill="url(#zgComb)" clip-path="url(#cpInt)"/>
+  <!-- Turbine zone -->
+  <polygon points="593,372 786,372 836,188 643,188" fill="url(#zgTurb)" clip-path="url(#cpInt)"/>
+  <!-- Exhaust zone -->
+  <polygon points="786,372 918,372 968,188 836,188" fill="url(#zgExh)" clip-path="url(#cpInt)"/>
+
+  <!-- VIGV highlight (stages 1-4) -->
+  <polygon points="156,372 238,372 288,188 206,188" fill="url(#gVIGV)" clip-path="url(#cpInt)"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- HUB / DRUM (interior center strip)     -->
+  <!-- Hub at d=0.37 to d=0.63               -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- Hub polygon: depth 0.37-0.63 across full length -->
+  <!-- d=0.37: x_off=18.5, y=372-0.37*184=303 -->
+  <!-- d=0.63: x_off=31.5, y=372-0.63*184=256 -->
+  <polygon points="100.5,303 936.5,303 949.5,256 112.5,256"
+           fill="url(#gHub)" stroke="#3a4555" stroke-width="1"/>
+  <!-- Hub top edge highlight -->
+  <line x1="100.5" y1="303" x2="936.5" y2="303" stroke="#4a5670" stroke-width="1.2"/>
+  <!-- Hub bottom edge -->
+  <line x1="112.5" y1="256" x2="949.5" y2="256" stroke="#4a5670" stroke-width="1"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SHAFT (d=0.47-0.53)                   -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- d=0.47: x_off=23.5, y=372-0.47*184=285.5 -->
+  <!-- d=0.53: x_off=26.5, y=372-0.53*184=274.5 -->
+  <polygon points="105.5,285.5 941.5,285.5 944.5,274.5 108.5,274.5"
+           fill="url(#gShaft)" stroke="#555f72" stroke-width="1"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- COMPRESSOR BLADE ROWS (from above)     -->
+  <!-- 17 stages, p=0.09 to p=0.45           -->
+  <!-- Near edge x = 80 + p*840              -->
+  <!-- Far edge x = 130 + p*840              -->
+  <!-- ══════════════════════════════════════ -->
+  <g id="comp-discs"></g>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- TURBINE BLADE ROWS (from above)        -->
+  <!-- 4 stages, p=0.61 to p=0.84           -->
+  <!-- ══════════════════════════════════════ -->
+  <g id="turb-discs"></g>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- COMBUSTOR CANS (from above, top view)  -->
+  <!-- ══════════════════════════════════════ -->
+
+  <!-- Combustor wrapper (casing top plate) -->
+  <polygon points="458,372 593,372 643,188 508,188"
+           fill="rgba(80,30,8,.15)" clip-path="url(#cpComb)"/>
+
+  <!-- Flame glow center of combustor -->
+  <ellipse cx="525" cy="295" rx="55" ry="38" fill="url(#gFlameA)" filter="url(#fGlow)" clip-path="url(#cpComb)"/>
+  <ellipse cx="536" cy="232" rx="50" ry="32" fill="url(#gFlameA)" filter="url(#fGlow)" clip-path="url(#cpComb)" opacity="0.7"/>
+
+  <!-- Near-side combustor cans (d=0.15 to d=0.35, nearer/lower) -->
+  <!-- 4 cans visible near side -->
+  <ellipse cx="490" cy="358" rx="20" ry="9" fill="#2a1408" stroke="#6a3a18" stroke-width="1.5" clip-path="url(#cpComb)"/>
+  <ellipse cx="490" cy="358" rx="12" ry="5" fill="rgba(255,130,40,.4)" filter="url(#fGlow)"/>
+
+  <ellipse cx="510" cy="342" rx="20" ry="9" fill="#2a1408" stroke="#6a3a18" stroke-width="1.5" clip-path="url(#cpComb)"/>
+  <ellipse cx="510" cy="342" rx="12" ry="5" fill="rgba(255,130,40,.45)" filter="url(#fGlow)"/>
+
+  <ellipse cx="530" cy="328" rx="20" ry="9" fill="#2a1408" stroke="#7a4a20" stroke-width="1.5" clip-path="url(#cpComb)"/>
+  <ellipse cx="530" cy="328" rx="12" ry="5" fill="rgba(255,140,40,.5)" filter="url(#fGlow)"/>
+
+  <ellipse cx="550" cy="316" rx="19" ry="8" fill="#301808" stroke="#7a4a20" stroke-width="1.5" clip-path="url(#cpComb)"/>
+  <ellipse cx="550" cy="316" rx="11" ry="5" fill="rgba(255,150,40,.55)" filter="url(#fGlow)"/>
+
+  <!-- Side cans (d=0.35 to d=0.63, hub zone, not shown — hidden by hub) -->
+
+  <!-- Far-side combustor cans (d=0.65 to 0.85, farther/upper in image) -->
+  <ellipse cx="550" cy="244" rx="18" ry="8" fill="#2a1408" stroke="#6a3a18" stroke-width="1.5" clip-path="url(#cpComb)"/>
+  <ellipse cx="550" cy="244" rx="10" ry="4" fill="rgba(255,130,40,.35)" filter="url(#fGlow)"/>
+
+  <ellipse cx="566" cy="232" rx="18" ry="8" fill="#2a1408" stroke="#6a3a18" stroke-width="1.5" clip-path="url(#cpComb)"/>
+  <ellipse cx="566" cy="232" rx="10" ry="4" fill="rgba(255,130,40,.30)" filter="url(#fGlow)"/>
+
+  <ellipse cx="578" cy="218" rx="17" ry="7" fill="#2a1408" stroke="#5a3010" stroke-width="1.5" clip-path="url(#cpComb)"/>
+  <ellipse cx="578" cy="218" rx="9" ry="4" fill="rgba(255,120,40,.25)" filter="url(#fGlow)"/>
+
+  <ellipse cx="590" cy="205" rx="16" ry="7" fill="#2a1408" stroke="#5a3010" stroke-width="1.5" clip-path="url(#cpComb)"/>
+
+  <!-- Fuel nozzle indication lines -->
+  <g stroke="#c08040" stroke-width="1" opacity="0.5" stroke-dasharray="3,2" clip-path="url(#cpComb)">
+    <line x1="467" y1="363" x2="490" y2="358"/>
+    <line x1="487" y1="348" x2="510" y2="342"/>
+    <line x1="508" y1="334" x2="530" y2="328"/>
+  </g>
+
+  <!-- Combustor label -->
+  <text x="523" y="280" fill="rgba(200,120,60,.5)" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="600">20 CANS TOTAL</text>
+
+  <!-- IGV blades visible in inlet zone from above -->
+  <g id="igv-top" clip-path="url(#cpInlet)"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION DIVIDERS (inside interior pan) -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- Each divider: line from near edge to far edge -->
+  <!-- IGV boundary p=0.09: near_x=155.6, far_x=205.6 -->
+  <line x1="156" y1="372" x2="206" y2="188" stroke="#3a4560" stroke-width="1" stroke-dasharray="4,4" opacity=".8"/>
+  <!-- VIGV end p=0.185: near_x=235, far_x=285 -->
+  <line x1="235" y1="372" x2="285" y2="188" stroke="#3a5a80" stroke-width="1" stroke-dasharray="3,5" opacity=".5"/>
+  <!-- Comp/Comb p=0.45: near_x=458, far_x=508 -->
+  <line x1="458" y1="372" x2="508" y2="188" stroke="#3a4560" stroke-width="1.5" stroke-dasharray="4,3" opacity=".9"/>
+  <!-- Comb/Turb p=0.61: near_x=593, far_x=643 -->
+  <line x1="593" y1="372" x2="643" y2="188" stroke="#3a4560" stroke-width="1.5" stroke-dasharray="4,3" opacity=".9"/>
+  <!-- Turb/Exh p=0.84: near_x=786, far_x=836 -->
+  <line x1="786" y1="372" x2="836" y2="188" stroke="#3a4560" stroke-width="1" stroke-dasharray="4,4" opacity=".8"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- INTERIOR EDGE SHADOW (depth feeling)   -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- Near edge inner shadow -->
+  <polygon points="82,372 918,372 918,380 82,380" fill="rgba(0,0,0,.5)"/>
+  <!-- Far edge inner shadow -->
+  <polygon points="132,188 968,188 968,195 132,195" fill="rgba(0,0,0,.3)"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- CASING — Near face (exterior bottom)   -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- The near exterior face is a curved band below the interior pan edge -->
+  <!-- Near face: from (82,372) curving down to (~500,430) and back to (918,372) -->
+  <path d="M 82,372
+           C 200,405 380,420 500,424
+           C 620,420 800,405 918,372
+           L 918,380
+           C 800,413 620,428 500,432
+           C 380,428 200,413 82,380 Z"
+        fill="url(#gCasNear)" filter="url(#fMetal)"/>
+  <!-- Near face outer bottom edge (highlight) -->
+  <path d="M 82,372 C 200,405 380,420 500,424 C 620,420 800,405 918,372"
+        fill="none" stroke="#6b7888" stroke-width="1.5"/>
+  <!-- Near face inner edge (cut rim, highlighted) -->
+  <path d="M 82,372 C 200,405 380,420 500,424 C 620,420 800,405 918,372"
+        fill="none" stroke="#3a4255" stroke-width="1"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- CUT RIM (top edge of remaining casing) -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- Near rim: band along bottom of interior pan -->
+  <path d="M 82,370 L 918,370 L 918,376 L 82,376 Z" fill="url(#gRim)" opacity=".9"/>
+  <!-- Far rim: band along top of interior pan (narrow, nearly edge-on) -->
+  <path d="M 132,188 L 968,188 L 968,192 L 132,192 Z" fill="#4a5568" opacity=".7"/>
+  <!-- Side rims (left and right) -->
+  <line x1="82" y1="372" x2="132" y2="188" stroke="#6a7585" stroke-width="1.5"/>
+  <line x1="918" y1="372" x2="968" y2="188" stroke="#6a7585" stroke-width="1.5"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- CASING — Top face (far-side exterior)  -->
+  <!-- Very thin perspective band            -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- This would be the top of the remaining lower casing, viewed from above -->
+  <!-- It appears as a thin parallelogram -->
+  <polygon points="82,372 132,188 140,184 90,368" fill="url(#gCasTop)" opacity=".8"/>
+  <polygon points="918,372 968,188 976,184 926,368" fill="url(#gCasTop)" opacity=".8"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- LEFT INLET FACE (circular cross-section) -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- Inlet face ellipse (only bottom half visible since top is cut away) -->
+  <!-- Inlet at x=82, center y = 372 - 0.5*184 = 280, ry=95, rx=18 (perspective) -->
+  <path d="M 82,185 A 18,95 0 0 0 82,375 Z" fill="url(#gInletFaceR)" stroke="#4a5565" stroke-width="1.5"/>
+  <!-- Inner inlet circle (hub face) -->
+  <path d="M 82,256 A 6,30 0 0 0 82,316 Z" fill="#3a4555" stroke="#5a6575" stroke-width="1"/>
+  <!-- Inlet IGV faces (radial lines visible on inlet face) -->
+  <g stroke="#4880c0" stroke-width="1.2" opacity=".6">
+    <line x1="82" y1="200" x2="82" y2="215"/>
+    <line x1="82" y1="218" x2="82" y2="233"/>
+    <line x1="82" y1="236" x2="82" y2="251"/>
+    <!-- below hub -->
+    <line x1="82" y1="320" x2="82" y2="335"/>
+    <line x1="82" y1="338" x2="82" y2="353"/>
+    <line x1="82" y1="356" x2="82" y2="370"/>
+  </g>
+  <!-- Inlet annulus ring (outer edge of inlet) -->
+  <path d="M 76,185 A 14,91 0 0 0 76,375 L 82,375 A 18,95 0 0 1 82,185 Z"
+        fill="#3a4555" stroke="#5a6270" stroke-width="1"/>
+  <!-- Inlet highlight arc -->
+  <path d="M 79,190 A 14,88 0 0 0 79,370" fill="none" stroke="#7a8898" stroke-width="1" opacity=".5"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- RIGHT EXHAUST FACE                    -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- Exhaust face at x=968 -->
+  <path d="M 968,188 A 20,92 0 0 1 968,372 Z" fill="url(#gExhFaceR)" stroke="#4a5565" stroke-width="1.5"/>
+  <!-- Exhaust diffuser struts visible -->
+  <g stroke="#3a3020" stroke-width="1" opacity=".6">
+    <line x1="968" y1="220" x2="968" y2="250"/>
+    <line x1="968" y1="320" x2="968" y2="350"/>
+  </g>
+  <!-- Exhaust annulus ring -->
+  <path d="M 974,188 A 14,90 0 0 1 974,372 L 968,372 A 20,92 0 0 0 968,188 Z"
+        fill="#2a2018" stroke="#3a3020" stroke-width="1"/>
+
+  <!-- ══════════════════════════════════════ -->
+  <!-- SECTION LABELS                        -->
+  <!-- ══════════════════════════════════════ -->
+  <!-- Labels placed above interior pan -->
+  <text x="118" y="175" fill="#8b949e" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700" letter-spacing=".4">INLET</text>
+  <text x="197" y="175" fill="#5898cc" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700" letter-spacing=".4">IGV</text>
+
+  <!-- IGV label box -->
+  <rect x="150" y="165" width="94" height="14" rx="3" fill="rgba(30,80,140,.3)" stroke="rgba(88,166,255,.3)" stroke-width="1"/>
+  <text x="197" y="175" fill="#58a6ff" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700">IGV / VIGV</text>
+
+  <text x="340" y="165" fill="#8b949e" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700" letter-spacing=".4">COMPRESSOR — 17 STAGES</text>
+  <text x="568" y="165" fill="#8b949e" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700" letter-spacing=".4">COMBUSTOR</text>
+  <text x="714" y="165" fill="#8b949e" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700" letter-spacing=".4">TURBINE — 4 STAGES</text>
+  <text x="880" y="165" fill="#8b949e" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" font-weight="700" letter-spacing=".4">EXHAUST</text>
+
+  <!-- Top ruler line -->
+  <line x1="82" y1="160" x2="968" y2="160" stroke="#21262d" stroke-width="1"/>
+  <!-- Tick marks at section boundaries -->
+  <g stroke="#30363d" stroke-width="1">
+    <line x1="156" y1="156" x2="156" y2="164"/>
+    <line x1="458" y1="156" x2="458" y2="164"/>
+    <line x1="593" y1="156" x2="593" y2="164"/>
+    <line x1="786" y1="156" x2="786" y2="164"/>
+  </g>
+
+  <!-- "Looking from above" camera angle indicator -->
+  <text x="30" y="290" fill="#30363d" font-size="8" font-family="'Segoe UI',sans-serif" text-anchor="middle" transform="rotate(-90,30,290)">VIEW FROM ABOVE</text>
+  <line x1="18" y1="188" x2="18" y2="372" stroke="#30363d" stroke-width="1"/>
+  <polygon points="18,185 15,193 21,193" fill="#30363d"/>
+  <polygon points="18,375 15,367 21,367" fill="#30363d"/>
+
+  <!-- Dimension arrow (overall length) -->
+  <line x1="82" y1="418" x2="968" y2="418" stroke="#21262d" stroke-width="1"/>
+  <polygon points="82,418 90,415 90,421" fill="#21262d"/>
+  <polygon points="968,418 960,415 960,421" fill="#21262d"/>
+  <text x="525" y="427" fill="#30363d" font-size="8" font-family="monospace" text-anchor="middle">Overall Length — M701J Gas Turbine</text>
+
+  <!-- Flow direction -->
+  <text x="525" y="408" fill="#21262d" font-size="8" font-family="monospace" text-anchor="middle">◀────  Air Flow Direction  ────▶</text>
+
+  </svg>
+
+  <!-- ═══════════════════════════════ -->
+  <!-- HOTSPOTS                       -->
+  <!-- ═══════════════════════════════ -->
+
+  <!-- T1 Inlet -->
+  <div class="hs" style="left:4%;top:64%;" onclick="openModal('t1')"><span class="hs-icon">+</span></div>
+  <div class="pl" style="left:6%;top:50%;"><span class="pn">T1 — Inlet Air Temp</span><span class="pv">28.4<span class="pu">°C</span></span></div>
+
+  <!-- IGV -->
+  <div class="hs" style="left:15%;top:40%;" onclick="openModal('igv')"><span class="hs-icon">+</span></div>
+  <div class="pl" style="left:17%;top:28%;"><span class="pn">IGV / VIGV Angle</span><span class="pv">86.2<span class="pu">°</span></span></div>
+
+  <!-- T2/P2 -->
+  <div class="hs" style="left:45%;top:30%;" onclick="openModal('t2p2')"><span class="hs-icon">+</span></div>
+  <div class="pl" style="left:47%;top:18%;"><span class="pn">T2 / P2 Comp. Discharge</span><span class="pv">425°C <span class="pu">/ 1.74 MPa</span></span></div>
+
+  <!-- Fuel (alarm) -->
+  <div class="hs alarm" style="left:54%;top:18%;" onclick="openModal('fuel')"><span class="hs-icon" style="color:var(--yellow)">!</span></div>
+  <div class="pl alarm" style="left:56%;top:6%;border-color:rgba(210,153,34,.4);"><span class="pn">Fuel Flow</span><span class="pv">⚠ 24.92<span class="pu" style="color:var(--text2)"> MMSCFD</span></span></div>
+
+  <!-- T3 Turbine Inlet -->
+  <div class="hs" style="left:62%;top:72%;" onclick="openModal('t3')"><span class="hs-icon">+</span></div>
+  <div class="pl" style="left:57%;top:82%;"><span class="pn">T3 — Turbine Inlet</span><span class="pv">1,350<span class="pu">°C</span></span></div>
+
+  <!-- EGT -->
+  <div class="hs" style="left:84%;top:48%;" onclick="openModal('egt')"><span class="hs-icon">+</span></div>
+  <div class="pl" style="left:72%;top:60%;"><span class="pn">EGT — Exhaust Gas Temp</span><span class="pv">612.8<span class="pu">°C</span></span></div>
+
+  </div><!-- /gt-wrap -->
+
+  <!-- Gauges -->
+  <div class="gauge-row">
+    <div class="gc"><div style="font-size:10px;color:var(--text2);margin-bottom:4px">SPEED</div><div style="position:relative;height:72px"><canvas id="gRPM"></canvas></div><div class="gv" style="color:var(--green)">3,000</div><div class="gu">RPM</div></div>
+    <div class="gc"><div style="font-size:10px;color:var(--text2);margin-bottom:4px">OUTPUT</div><div style="position:relative;height:72px"><canvas id="gMW"></canvas></div><div class="gv" style="color:var(--blue)">300.5</div><div class="gu">MW</div></div>
+    <div class="gc"><div style="font-size:10px;color:var(--text2);margin-bottom:4px">HEAT RATE</div><div style="position:relative;height:72px"><canvas id="gHR"></canvas></div><div class="gv" style="color:var(--yellow)">7,842</div><div class="gu">kJ/kWh</div></div>
+    <div class="gc"><div style="font-size:10px;color:var(--text2);margin-bottom:4px">PRESS. RATIO</div><div style="position:relative;height:72px"><canvas id="gPR"></canvas></div><div class="gv" style="color:var(--text)">23.1</div><div class="gu">P2/P1</div></div>
+    <div class="gc"><div style="font-size:10px;color:var(--text2);margin-bottom:4px">EGT</div><div style="position:relative;height:72px"><canvas id="gEGT"></canvas></div><div class="gv" style="color:var(--orange)">612.8</div><div class="gu">°C</div></div>
+  </div>
+
+</div><!-- /diagram-panel -->
+
+<!-- Right column -->
+<div class="right-col">
+  <div class="kpi-panel">
+    <div class="panel-title" style="margin-bottom:8px">📊 Parameters</div>
+    <div class="pr" onclick="openModal('t1')"><div class="prd" style="background:var(--blue)"></div><span class="prn">Inlet Air Temp (T1)</span><span class="prv ok">28.4</span><span class="pru">°C</span><span class="tu">▲</span></div>
+    <div class="pr" onclick="openModal('igv')"><div class="prd" style="background:var(--blue)"></div><span class="prn">IGV / VIGV Angle</span><span class="prv ok">86.2</span><span class="pru">°</span><span class="td">▼</span></div>
+    <div class="pr" onclick="openModal('t2p2')"><div class="prd" style="background:#a78bfa"></div><span class="prn">Comp. Discharge T2</span><span class="prv ok">425.1</span><span class="pru">°C</span><span style="font-size:10px;color:var(--text2)">─</span></div>
+    <div class="pr" onclick="openModal('t2p2')"><div class="prd" style="background:#a78bfa"></div><span class="prn">Comp. Discharge P2</span><span class="prv ok">1.74</span><span class="pru">MPa</span><span style="font-size:10px;color:var(--text2)">─</span></div>
+    <div class="pr" onclick="openModal('fuel')"><div class="prd" style="background:var(--yellow)"></div><span class="prn">Fuel Flow</span><span class="prv alarm-c">24.92</span><span class="pru">MMSCFD</span><span class="tu" style="color:var(--yellow)">▲</span></div>
+    <div class="pr" onclick="openModal('t3')"><div class="prd" style="background:var(--red)"></div><span class="prn">Turbine Inlet Temp (T3)</span><span class="prv ok">1,350</span><span class="pru">°C</span><span style="font-size:10px;color:var(--text2)">─</span></div>
+    <div class="pr" onclick="openModal('egt')"><div class="prd" style="background:var(--orange)"></div><span class="prn">Exhaust Gas Temp (EGT)</span><span class="prv ok">612.8</span><span class="pru">°C</span><span class="tu">▲</span></div>
+    <div class="pr" onclick="openModal('nox')"><div class="prd" style="background:var(--green)"></div><span class="prn">NOx Emission</span><span class="prv ok">18.2</span><span class="pru">ppm</span><span class="td">▼</span></div>
+  </div>
+  <div class="kpi-panel" style="border-color:rgba(210,153,34,.4)">
+    <div class="panel-title" style="color:var(--yellow);margin-bottom:8px">⚠ Alarms</div>
+    <div style="background:rgba(210,153,34,.1);border-radius:6px;padding:8px 10px;border-left:3px solid var(--yellow)">
+      <div style="font-size:11px;font-weight:600;color:var(--yellow)">Fuel Flow High</div>
+      <div style="font-size:10px;color:var(--text2);margin-top:2px">24.92 / Limit 24.5 MMSCFD</div>
+      <div style="font-size:10px;color:var(--text2)">08:32 น. — ยังค้างอยู่</div>
+    </div>
+  </div>
+  <div class="kpi-panel">
+    <div class="panel-title" style="margin-bottom:8px">🔧 Machine Info</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:11px">
+      <div style="color:var(--text2)">Model</div><div>M701J</div>
+      <div style="color:var(--text2)">Comp. Stages</div><div>17</div>
+      <div style="color:var(--text2)">Turbine Stages</div><div>4</div>
+      <div style="color:var(--text2)">Combustor</div><div>Can-Annular (20)</div>
+      <div style="color:var(--text2)">TIT Class</div><div>1,600 °C</div>
+      <div style="color:var(--text2)">Run Hours</div><div style="color:var(--green)">2,184 h</div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- Modal -->
+<div class="mo" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="md">
+    <div class="mh">
+      <div><div class="mt" id="modal-title">Parameter Trend</div><div style="font-size:11px;color:var(--text2)" id="modal-sub">24 ชม. ย้อนหลัง</div></div>
+      <div style="margin-left:auto;text-align:right"><div class="mb" id="modal-val">—</div><div style="font-size:11px;color:var(--text2)" id="modal-unit"></div></div>
+      <button class="mc" onclick="closeModal()">✕</button>
+    </div>
+    <div class="ms">
+      <div class="sb"><div class="sl">Min</div><div class="sv" id="stat-min">—</div></div>
+      <div class="sb"><div class="sl">Avg</div><div class="sv" id="stat-avg">—</div></div>
+      <div class="sb"><div class="sl">Max</div><div class="sv" id="stat-max">—</div></div>
+    </div>
+    <div class="mcw"><canvas id="modal-chart"></canvas></div>
+    <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+      <button style="background:var(--surface);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px" onclick="closeModal()">ปิด</button>
+      <button style="background:var(--accent);border:none;color:white;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:12px">⤢ เต็มจอ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+
+// ── Perspective helpers ──
+// Interior pan: NL(82,372) NR(918,372) FR(968,188) FL(132,188)
+// p=axial 0-1, d=depth 0(near)=1(far)
+function px(p, d) { return 82 + p*836 + d*50; }
+function py(p, d) { return 372 - d*184; }
+
+// ── Compressor disc rows (seen from above = thin parallelograms) ──
+function drawCompressor() {
+  const g = document.getElementById('comp-discs');
+  const stages = 17;
+  const p0 = 0.09, p1 = 0.45;
+  const dp = (p1 - p0) / stages;
+  const w = dp * 0.55; // disc "axial" width as fraction of p
+
+  // Hub bounds in p (always 0-1 in axial, varies in depth)
+  const dHubN = 0.37, dHubF = 0.63; // hub depth range
+
+  for (let i = 0; i < stages; i++) {
+    const p = p0 + i * dp;
+    const isRotor = (i % 2 === 0);
+    const isVIGV  = i < 4;
+
+    // Near bottom annulus: d=0 to dHubN
+    // Far top annulus: d=dHubF to 1
+    // Hub: dHubN to dHubF (skip)
+
+    const fill   = isVIGV ? (isRotor ? '#2a5888' : '#204870') : (isRotor ? '#283860' : '#1e2e50');
+    const stroke = isVIGV ? (isRotor ? '#5898d8' : '#487ab8') : (isRotor ? '#485878' : '#384868');
+    const sw     = isVIGV ? 0.8 : 0.5;
+
+    // Draw the disc as two separate annulus-band segments
+    // Near annulus band (d = 0 → dHubN)
+    const nearPoly = [
+      [px(p,   0),     py(p,   0)],
+      [px(p+w, 0),     py(p+w, 0)],
+      [px(p+w, dHubN), py(p+w, dHubN)],
+      [px(p,   dHubN), py(p,   dHubN)],
+    ];
+    const el1 = document.createElementNS(NS, 'polygon');
+    el1.setAttribute('points', nearPoly.map(c=>c.join(',')).join(' '));
+    el1.setAttribute('fill', fill);
+    el1.setAttribute('stroke', stroke);
+    el1.setAttribute('stroke-width', sw);
+    g.appendChild(el1);
+
+    // Far annulus band (d = dHubF → 1)
+    const farPoly = [
+      [px(p,   dHubF), py(p,   dHubF)],
+      [px(p+w, dHubF), py(p+w, dHubF)],
+      [px(p+w, 1),     py(p+w, 1)],
+      [px(p,   1),     py(p,   1)],
+    ];
+    const el2 = document.createElementNS(NS, 'polygon');
+    el2.setAttribute('points', farPoly.map(c=>c.join(',')).join(' '));
+    el2.setAttribute('fill', fill);
+    el2.setAttribute('stroke', stroke);
+    el2.setAttribute('stroke-width', sw);
+    g.appendChild(el2);
+
+    // Stage labels at far edge every 4 stages
+    if (i % 4 === 0 && i > 0) {
+      const t = document.createElementNS(NS, 'text');
+      t.setAttribute('x', px(p, 0.95));
+      t.setAttribute('y', py(p, 0.95) - 3);
+      t.setAttribute('fill', '#384870');
+      t.setAttribute('font-size', 7);
+      t.setAttribute('text-anchor', 'middle');
+      t.setAttribute('font-family', "'Segoe UI',sans-serif");
+      t.textContent = `S${i+1}`;
+      g.appendChild(t);
+    }
+  }
+
+  // VIGV label at start
+  const vt = document.createElementNS(NS, 'text');
+  vt.setAttribute('x', px(p0+0.04, 0.85));
+  vt.setAttribute('y', py(p0+0.04, 0.85) - 3);
+  vt.setAttribute('fill', '#5898cc');
+  vt.setAttribute('font-size', 7);
+  vt.setAttribute('text-anchor', 'middle');
+  vt.setAttribute('font-family', "'Segoe UI',sans-serif");
+  vt.textContent = 'VIGV';
+  g.appendChild(vt);
+}
+
+// ── Turbine disc rows (thicker, hotter colors) ──
+function drawTurbine() {
+  const g = document.getElementById('turb-discs');
+  const stages = 4;
+  const p0 = 0.61, p1 = 0.84;
+  const dp = (p1 - p0) / stages;
+  const w = dp * 0.6;
+
+  const dHubN = 0.38, dHubF = 0.62;
+
+  const colors = [
+    { fill:'#6a2808', stroke:'#c05020' },
+    { fill:'#5a2005', stroke:'#a04018' },
+    { fill:'#4a1a05', stroke:'#883015' },
+    { fill:'#3c1404', stroke:'#703010' },
+  ];
+
+  for (let i = 0; i < stages; i++) {
+    const p  = p0 + i * dp;
+    const { fill, stroke } = colors[i];
+
+    // Near annulus
+    const n = [
+      [px(p,   0), py(p,   0)],
+      [px(p+w, 0), py(p+w, 0)],
+      [px(p+w, dHubN), py(p+w, dHubN)],
+      [px(p,   dHubN), py(p,   dHubN)],
+    ];
+    const e1 = document.createElementNS(NS, 'polygon');
+    e1.setAttribute('points', n.map(c=>c.join(',')).join(' '));
+    e1.setAttribute('fill', fill); e1.setAttribute('stroke', stroke); e1.setAttribute('stroke-width', 0.8);
+    g.appendChild(e1);
+
+    // Far annulus
+    const f = [
+      [px(p,   dHubF), py(p,   dHubF)],
+      [px(p+w, dHubF), py(p+w, dHubF)],
+      [px(p+w, 1), py(p+w, 1)],
+      [px(p,   1), py(p,   1)],
+    ];
+    const e2 = document.createElementNS(NS, 'polygon');
+    e2.setAttribute('points', f.map(c=>c.join(',')).join(' '));
+    e2.setAttribute('fill', fill); e2.setAttribute('stroke', stroke); e2.setAttribute('stroke-width', 0.8);
+    g.appendChild(e2);
+
+    // Stage label
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('x', px(p+w/2, 0.15));
+    t.setAttribute('y', py(p+w/2, 0.15) + 4);
+    t.setAttribute('fill', '#8a4020');
+    t.setAttribute('font-size', 8);
+    t.setAttribute('text-anchor', 'middle');
+    t.setAttribute('font-family', "'Segoe UI',sans-serif");
+    t.textContent = `T${i+1}`;
+    g.appendChild(t);
+  }
+}
+
+// ── IGV blades in top view (inlet zone) ──
+function drawIGVTop() {
+  const g = document.getElementById('igv-top');
+  // A few diagonal lines representing the IGVs seen from above
+  // They appear as angled blades in the inlet zone
+  for (let i = 0; i < 6; i++) {
+    const d = 0.08 + i * 0.15;
+    if (d > dHubF + 0.05) continue;
+    const skip = (d > 0.37 && d < 0.63);
+    if (skip) continue;
+    const x1 = px(0, d), y1 = py(0, d);
+    const x2 = px(0.09, d), y2 = py(0.09, d);
+    const el = document.createElementNS(NS, 'line');
+    el.setAttribute('x1', x1); el.setAttribute('y1', y1);
+    el.setAttribute('x2', x2); el.setAttribute('y2', y2);
+    el.setAttribute('stroke', '#4880c0'); el.setAttribute('stroke-width', 1.5); el.setAttribute('opacity', 0.6);
+    g.appendChild(el);
+  }
+}
+
+const dHubF = 0.63;
+drawCompressor();
+drawTurbine();
+drawIGVTop();
+
+// ── Gauges ──
+function makeGauge(id, value, min, max, color) {
+  const pct = Math.min(Math.max((value-min)/(max-min), 0), 1);
+  new Chart(document.getElementById(id), {
+    type:'doughnut',
+    data:{ datasets:[{ data:[pct*180,(1-pct)*180,180], backgroundColor:[color,'#21262d','transparent'], borderWidth:0, circumference:180, rotation:-90 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'74%', plugins:{ legend:{display:false}, tooltip:{enabled:false} }, animation:{duration:900} }
+  });
+}
+makeGauge('gRPM', 3000, 0, 3600, '#3fb950');
+makeGauge('gMW',  300.5, 0, 340,  '#58a6ff');
+makeGauge('gHR',  7842,  7500, 8500, '#d29922');
+makeGauge('gPR',  23.1,  0, 30,    '#e6edf3');
+makeGauge('gEGT', 612.8, 400, 700,  '#e3873a');
+
+// ── Modal ──
+const hrs = Array.from({length:24},(_,i)=>`${String(i).padStart(2,'0')}:00`);
+const paramData = {
+  t1:   { title:'Inlet Air Temperature (T1)', unit:'°C', val:'28.4', min:'22.1 °C', avg:'26.8 °C', max:'31.2 °C', values:[24.2,23.8,23.5,23.1,22.9,22.8,22.8,23.1,24.4,25.8,27.1,28.2,29.5,30.1,31.2,30.8,30.2,29.6,28.9,28.4,27.8,27.1,26.5,26.0], limit:null, color:'#58a6ff' },
+  igv:  { title:'IGV / VIGV Angle', unit:'°', val:'86.2', min:'78.0 °', avg:'84.1 °', max:'87.5 °', values:[82,83,83,84,84,85,85,85,85,85,86,86,86,86,87,87,87,87,87,86,86,86,86,86], limit:88, color:'#58a6ff' },
+  t2p2: { title:'Compressor Discharge Temp (T2)', unit:'°C', val:'425.1', min:'418.0 °C', avg:'422.4 °C', max:'428.3 °C', values:[418,419,420,420,421,421,422,422,422,423,424,424,425,425,426,426,427,427,427,427,426,426,426,425], limit:440, color:'#a78bfa' },
+  fuel: { title:'Fuel Gas Flow', unit:'MMSCFD', val:'24.92', min:'23.8', avg:'24.3', max:'24.92', values:[23.8,23.9,24.0,24.0,24.1,24.2,24.2,24.1,24.1,24.2,24.3,24.4,24.5,24.6,24.7,24.7,24.8,24.8,24.9,24.9,24.92,24.92,24.91,24.90], limit:24.5, color:'#e3873a' },
+  t3:   { title:'Turbine Inlet Temperature (T3)', unit:'°C', val:'1,350', min:'1,302 °C', avg:'1,335 °C', max:'1,358 °C', values:[1302,1308,1315,1318,1322,1325,1330,1332,1335,1338,1340,1342,1345,1348,1350,1352,1355,1356,1358,1355,1350,1348,1345,1342], limit:1400, color:'#f85149' },
+  egt:  { title:'Exhaust Gas Temperature (EGT)', unit:'°C', val:'612.8', min:'598.2 °C', avg:'607.4 °C', max:'616.0 °C', values:[598,600,602,603,604,605,606,607,608,609,610,611,612,613,614,615,616,615,614,613,613,612,612,612], limit:640, color:'#e3873a' },
+  nox:  { title:'NOx Emission', unit:'ppm', val:'18.2', min:'15.8 ppm', avg:'17.6 ppm', max:'20.1 ppm', values:[18.5,18.2,18.0,17.8,17.6,17.4,17.2,17.0,16.8,16.5,16.2,16.0,15.8,16.0,16.5,17.0,17.5,18.0,18.5,19.0,19.5,20.1,19.8,18.2], limit:25, color:'#3fb950' },
+};
+
+let modalChart = null;
+function openModal(key) {
+  const d = paramData[key]; if (!d) return;
+  document.getElementById('modal-title').textContent = d.title;
+  document.getElementById('modal-val').textContent = d.val;
+  document.getElementById('modal-unit').textContent = d.unit;
+  document.getElementById('stat-min').textContent = d.min;
+  document.getElementById('stat-avg').textContent = d.avg;
+  document.getElementById('stat-max').textContent = d.max;
+  document.getElementById('modal').classList.add('open');
+  if (modalChart) { modalChart.destroy(); modalChart = null; }
+  const datasets = [{ label:d.title, data:d.values, borderColor:d.color, backgroundColor:d.color+'18', fill:true, tension:0.38, borderWidth:2, pointRadius:2.5, pointHoverRadius:5 }];
+  if (d.limit) datasets.push({ label:'Alarm Limit', data:Array(24).fill(d.limit), borderColor:'#f85149', borderDash:[6,4], borderWidth:1.5, pointRadius:0, fill:false });
+  modalChart = new Chart(document.getElementById('modal-chart'), {
+    type:'line', data:{ labels:hrs, datasets },
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:{display:!!d.limit,labels:{color:'#8b949e',font:{size:11},boxWidth:16}}, tooltip:{backgroundColor:'#1c2128',borderColor:'#30363d',borderWidth:1,titleColor:'#e6edf3',bodyColor:'#8b949e'} },
+      scales:{ x:{ticks:{color:'#8b949e',font:{size:10},maxTicksLimit:8},grid:{color:'#21262d'}}, y:{ticks:{color:'#8b949e',font:{size:10}},grid:{color:'#21262d'}} } }
+  });
+}
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
+</script>
+</body>
+</html>
