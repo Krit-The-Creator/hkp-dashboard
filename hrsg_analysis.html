@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="th" data-lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HRSG Analysis — HKP Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js" onerror="console.warn('Annotation plugin failed to load')"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#1c2128;
+    --border:#21262d; --border2:#30363d;
+    --text:#e6edf3; --text2:#8b949e; --text3:#484f58;
+    --blue:#58a6ff; --green:#3fb950; --red:#f85149;
+    --yellow:#d29922; --orange:#e3873a; --purple:#a371f7;
+    --accent:#1f6feb;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'Sarabun','Inter',sans-serif; margin:0; overflow-x:hidden; }
+  .sidebar { width:220px; min-height:100vh; background:var(--surface); border-right:1px solid var(--border); position:fixed; left:0; top:0; display:flex; flex-direction:column; z-index:100; }
+  .sidebar-logo { padding:20px 18px 16px; border-bottom:1px solid var(--border); }
+  .plant-name { font-size:13px; font-weight:700; color:var(--blue); letter-spacing:1px; text-transform:uppercase; }
+  .sub-name { font-size:11px; color:var(--text2); margin-top:2px; }
+  .nav-section-label { font-size:10px; font-weight:600; color:var(--text3); letter-spacing:1.5px; text-transform:uppercase; padding:16px 18px 6px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:9px 18px; margin:1px 8px; border-radius:6px; cursor:pointer; font-size:13.5px; color:var(--text2); transition:all 0.15s; text-decoration:none; }
+  .nav-item:hover { background:var(--border); color:var(--text); }
+  .nav-item.active { background:#1f3a5f; color:var(--blue); font-weight:600; }
+  .topbar { margin-left:220px; height:56px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; position:sticky; top:0; z-index:50; }
+  .page-title { font-size:15px; font-weight:600; }
+  .page-subtitle { font-size:12px; color:var(--text2); margin-top:1px; }
+  .main-content { margin-left:220px; padding:16px 20px; min-height:calc(100vh - 56px); }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .card-title { font-size:12px; font-weight:600; color:var(--text2); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:12px; }
+  .kpi-value { font-size:26px; font-weight:700; line-height:1.1; }
+  .kpi-unit { font-size:12px; color:var(--text2); margin-left:4px; font-weight:400; }
+  .kpi-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .kpi-badge.good { background:rgba(63,185,80,0.12); color:var(--green); }
+  .kpi-badge.neutral { background:rgba(139,148,158,0.12); color:var(--text2); }
+  .lang-toggle { display:flex; align-items:center; background:var(--border); border-radius:20px; padding:3px; gap:2px; }
+  .lang-btn { padding:4px 12px; border-radius:16px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; color:var(--text2); border:none; background:transparent; }
+  .lang-btn.active { background:var(--blue); color:var(--bg); }
+  .chart-container { position:relative; width:100%; height:220px; }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+  /* Flow diagram */
+  .flow-box { display:flex; flex-direction:column; align-items:center; justify-content:center; min-width:110px; padding:10px 14px; border-radius:10px; gap:3px; }
+  .flow-arrow { width:36px; height:2px; position:relative; flex-shrink:0; }
+  .flow-arrow::after { content:''; position:absolute; right:-5px; top:-4px; border-left:7px solid currentColor; border-top:4px solid transparent; border-bottom:4px solid transparent; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1f6feb,#58a6ff);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+      </div>
+      <div>
+        <div class="plant-name">HKP Power Plant</div>
+        <div class="sub-name">Plant Performance Monitoring</div>
+      </div>
+    </div>
+  </div>
+  <nav style="flex:1;padding:8px 0;">
+    <div class="nav-section-label">OVERVIEW</div>
+    <a class="nav-item" href="index.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span>Overview</span>
+    </a>
+    <div class="nav-section-label">EQUIPMENT</div>
+    <a class="nav-item" href="gt_prototype.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg> Gas Turbine</a>
+    <a class="nav-item" href="st_analysis.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg> Steam Turbine</a>
+    <a class="nav-item active" href="hrsg_analysis.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> HRSG</a>
+    <div class="nav-section-label" style="margin-top:8px;">REPORTS</div>
+    <a class="nav-item" href="#"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Daily Report</a>
+  </nav>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="page-title" data-th="วิเคราะห์ HRSG — B1 vs B2" data-en="HRSG Analysis — B1 vs B2">HRSG Analysis — B1 vs B2</div>
+    <div class="page-subtitle" data-th="ประสิทธิภาพ HRSG, FGH Energy, และ Flue Gas" data-en="HRSG Efficiency, FGH Energy, and Flue Gas Analysis">HRSG Efficiency, FGH Energy, and Flue Gas Analysis</div>
+  </div>
+  <div class="lang-toggle">
+    <button class="lang-btn" onclick="setLang('th')" id="btn-th">TH</button>
+    <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+  </div>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+
+  <!-- HRSG Flow Diagram -->
+  <div class="card" style="margin-bottom:14px;padding:16px 20px;">
+    <div class="card-title" data-th="แผนผัง HRSG Energy Flow" data-en="HRSG Energy Flow Diagram">HRSG Energy Flow Diagram</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:0;padding:10px 0;overflow-x:auto;">
+      <div class="flow-box" style="background:rgba(210,153,34,0.08);border:1px solid rgba(210,153,34,0.3);">
+        <div style="font-size:10px;font-weight:700;color:var(--yellow);">GT Exhaust</div>
+        <div style="font-size:14px;font-weight:700;" id="flow-exhaust">646 °C</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(210,153,34,0.5),rgba(210,153,34,0.8));color:rgba(210,153,34,0.8);"></div>
+      <div class="flow-box" style="background:rgba(248,81,73,0.06);border:1px solid rgba(248,81,73,0.25);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--red);">HP SH</div>
+        <div style="font-size:12px;font-weight:700;" id="flow-hp-sh">15.5 MPa</div>
+        <div style="font-size:10px;color:var(--text2);" id="flow-hp-temp">568 °C</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(210,153,34,0.4),rgba(88,166,255,0.6));color:rgba(88,166,255,0.6);"></div>
+      <div class="flow-box" style="background:rgba(88,166,255,0.06);border:1px solid rgba(88,166,255,0.25);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--blue);">IP RH</div>
+        <div style="font-size:12px;font-weight:700;" id="flow-ip">3.40 MPa</div>
+        <div style="font-size:10px;color:var(--text2);" id="flow-hrh-temp">556 °C</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(88,166,255,0.4),rgba(63,185,80,0.6));color:rgba(63,185,80,0.6);"></div>
+      <div class="flow-box" style="background:rgba(63,185,80,0.06);border:1px solid rgba(63,185,80,0.25);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--green);">LP EVP</div>
+        <div style="font-size:12px;font-weight:700;" id="flow-lp">0.46 MPa</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(63,185,80,0.4),rgba(163,113,247,0.6));color:rgba(163,113,247,0.6);"></div>
+      <div class="flow-box" style="background:rgba(163,113,247,0.06);border:1px solid rgba(163,113,247,0.25);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--purple);">FGH</div>
+        <div style="font-size:12px;font-weight:700;" id="flow-fgh">3-stage</div>
+      </div>
+      <div class="flow-arrow" style="background:linear-gradient(90deg,rgba(163,113,247,0.4),rgba(139,148,158,0.5));color:rgba(139,148,158,0.5);"></div>
+      <div class="flow-box" style="background:rgba(139,148,158,0.06);border:1px solid rgba(139,148,158,0.2);min-width:80px;">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);">Stack</div>
+        <div style="font-size:14px;font-weight:700;" id="flow-stack">90 °C</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPI Row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title">B1 HP Drum Press</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--blue);" id="kpi-b1-drum">—</span>
+        <span class="kpi-unit">MPa</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge neutral" id="kpi-b1-drum-lbl">Latest</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">B2 HP Drum Press</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--green);" id="kpi-b2-drum">—</span>
+        <span class="kpi-unit">MPa</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge neutral" id="kpi-b2-drum-lbl">Latest</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="B1 Stack Temp" data-en="B1 Stack Temp">B1 Stack Temp</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--text2);" id="kpi-b1-stack">—</span>
+        <span class="kpi-unit">°C</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge neutral">Latest</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="B2 Stack Temp" data-en="B2 Stack Temp">B2 Stack Temp</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--text2);" id="kpi-b2-stack">—</span>
+        <span class="kpi-unit">°C</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge good" data-th="B2 ต่ำกว่า (ดีกว่า)" data-en="B2 lower (better)">B2 lower (better)</span></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 1: HP Steam Press + Stack Temp -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Steam Pressure (SH Outlet)" data-en="HP Steam Pressure (SH Outlet)">HP Steam Pressure (SH Outlet)</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--green);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-hp-steam-press" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="Stack Temperature" data-en="Stack Temperature">Stack Temperature</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--green);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-stack" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 2: GT Exhaust + HP Main Steam Press -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="GT Exhaust Gas Temperature" data-en="GT Exhaust Gas Temperature">GT Exhaust Gas Temperature</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--green);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-exhaust" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HP Main Steam Pressure (to Turbine)" data-en="HP Main Steam Pressure (to Turbine)">HP Main Steam Pressure (to Turbine)</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--green);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-hp-main-press" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 3: HP Drum Pressure + Dm-SH Pressure Drop -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Drum Pressure" data-en="HP Drum Pressure">HP Drum Pressure</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--green);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-hp-drum" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HP SH Tube ΔP (Drum − SH Outlet)" data-en="HP SH Tube ΔP (Drum − SH Outlet)">HP SH Tube ΔP (Drum − SH Outlet)</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--green);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-dm-sh" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts Row 4: HP Steam Flow + FGH 3rd Stage Flow -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Steam Flow (Compensated)" data-en="HP Steam Flow (Compensated)">HP Steam Flow (Compensated)</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--purple);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-hp-steam-flow" height="200"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="FGH 3rd Stage Inlet Feed Water Flow" data-en="FGH 3rd Stage Inlet Feed Water Flow">FGH 3rd Stage Inlet Feed Water Flow</div>
+      <div style="display:flex;gap:14px;font-size:11px;margin-bottom:8px;">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--blue);border-radius:2px;display:inline-block;"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:3px;background:var(--purple);border-radius:2px;display:inline-block;"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-fgh3-flow" height="200"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Summary -->
+  <div class="card" style="margin-bottom:14px;border-left:3px solid var(--green);">
+    <div class="card-title" data-th="สรุป HRSG" data-en="HRSG Summary">HRSG Summary</div>
+    <div style="font-size:13px;line-height:1.7;">
+      <p data-th="HRSG ทั้ง Block 1 และ Block 2 ทำงานปกติ ประสิทธิภาพ ~90% ใกล้เคียงกัน ไม่มีสัญญาณเสื่อมสภาพ"
+         data-en="Both Block 1 and Block 2 HRSGs are operating normally at ~90% efficiency with no signs of degradation.">
+        Both Block 1 and Block 2 HRSGs are operating normally at ~90% efficiency with no signs of degradation.
+      </p>
+      <ul style="margin-top:8px;padding-left:20px;color:var(--text2);">
+        <li data-th="B2 Stack Temp ต่ำกว่า B1 (~1-3°C) — ดีกว่าเล็กน้อย" data-en="B2 Stack Temp lower than B1 (~1-3°C) — slightly better heat recovery">B2 Stack Temp lower than B1 (~1-3°C) — slightly better heat recovery</li>
+        <li data-th="Flue Gas O2 ใกล้เคียงกัน — combustion ปกติ" data-en="Flue Gas O2 similar between blocks — combustion normal">Flue Gas O2 similar between blocks — combustion normal</li>
+        <li data-th="FGH 3rd Stage: B2 energy gap เพิ่มหลัง Outage (+457 Apr) — ตรวจสอบเพิ่มเติม" data-en="FGH 3rd Stage: B2 energy gap increased post-outage (+457 Apr) — monitor further">FGH 3rd Stage: B2 energy gap increased post-outage (+457 Apr) — monitor further</li>
+        <li style="color:var(--green);font-weight:600;" data-th="HRSG ไม่ใช่สาเหตุของ ST Heat Rate degradation" data-en="HRSG is NOT the cause of ST Heat Rate degradation">HRSG is NOT the cause of ST Heat Rate degradation</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="text-align:center;font-size:11px;color:var(--text3);padding:12px 0;">
+    HKP HRSG Analysis · Live data from PI Historian · Filter: Gross MW > 400
+  </div>
+</div>
+
+<!-- SCRIPTS -->
+<script>
+let currentLang = 'en';
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('btn-th').classList.toggle('active', lang === 'th');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.querySelectorAll('[data-th][data-en]').forEach(el => {
+    el.textContent = el.getAttribute('data-' + lang);
+  });
+}
+
+Chart.defaults.color = '#8b949e';
+Chart.defaults.font.family = "'Sarabun','Inter',sans-serif";
+Chart.defaults.font.size = 11;
+
+const BLUE = '#58a6ff', GREEN = '#3fb950', RED = '#f85149', YELLOW = '#d29922', PURPLE = '#a371f7';
+const GRID = '#21262d', BORDER = '#30363d';
+
+function makeChart(id, labels, datasets, yUnit, extraAnnotations) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return null;
+  const outageAnno = {
+    type:'box', xMin: labels.indexOf('2026-04') - 0.5, xMax: labels.indexOf('2026-04') + 0.5,
+    backgroundColor:'rgba(248,81,73,0.06)', borderColor:'rgba(248,81,73,0.3)',
+    borderWidth:1, borderDash:[4,4],
+    label:{display:true,content:'Outage',position:'start',color:RED,font:{size:10,weight:600}}
+  };
+  const hasAnnotation = typeof Chart.registry !== 'undefined' &&
+    Chart.registry.plugins && Chart.registry.plugins.get('annotation');
+  const pluginOpts = {
+    legend:{display:false},
+    tooltip:{backgroundColor:'#21262d',borderColor:BORDER,borderWidth:1,titleColor:'#e6edf3',bodyColor:'#8b949e',
+      callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y?.toLocaleString(undefined,{maximumFractionDigits:2})} ${yUnit}`}}
+  };
+  if (hasAnnotation) pluginOpts.annotation = { annotations: { outage: outageAnno, ...(extraAnnotations||{}) } };
+  return new Chart(canvas.getContext('2d'), {
+    type:'line', data:{labels,datasets},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins: pluginOpts,
+      scales:{
+        x:{grid:{color:GRID},border:{color:BORDER}},
+        y:{grid:{color:GRID},border:{color:BORDER},ticks:{callback:v=>v.toLocaleString()}}
+      }
+    }
+  });
+}
+
+function ds(label, data, color) {
+  return {label, data, borderColor:color, backgroundColor:color+'18', borderWidth:2,
+    pointRadius:3, pointHoverRadius:5, pointBackgroundColor:color, tension:0.3, fill:false};
+}
+
+function initCharts(H) {
+  const lbl = H.stack_temp.months;
+
+  makeChart('chart-hp-steam-press', lbl, [ds('B1 HP SH Press', H.hp_steam_press.b1, BLUE), ds('B2 HP SH Press', H.hp_steam_press.b2, GREEN)], 'MPa');
+  makeChart('chart-stack',          lbl, [ds('B1 Stack T', H.stack_temp.b1, BLUE),           ds('B2 Stack T', H.stack_temp.b2, GREEN)],      '°C');
+  makeChart('chart-exhaust',        lbl, [ds('B1 GT Exh T', H.gt_exhaust_temp.b1, BLUE),     ds('B2 GT Exh T', H.gt_exhaust_temp.b2, GREEN)],'°C');
+  makeChart('chart-hp-main-press',  lbl, [ds('B1 HP Main', H.hp_main_press.b1, BLUE),        ds('B2 HP Main', H.hp_main_press.b2, GREEN)],   'MPa');
+  makeChart('chart-hp-drum',        lbl, [ds('B1 HP Drum', H.hp_drum_press.b1, BLUE),        ds('B2 HP Drum', H.hp_drum_press.b2, GREEN)],   'MPa');
+  makeChart('chart-dm-sh',          lbl, [ds('B1 Dm−SH', H.dm_sh.b1, BLUE),                 ds('B2 Dm−SH', H.dm_sh.b2, GREEN)],             'MPa');
+  makeChart('chart-hp-steam-flow',  lbl, [ds('B1 HP Flow', H.hp_steam_flow.b1, BLUE),        ds('B2 HP Flow', H.hp_steam_flow.b2, PURPLE)],  't/h');
+  makeChart('chart-fgh3-flow',      lbl, [ds('B1 FGH3 Flow', H.fgh3_flow.b1, BLUE),          ds('B2 FGH3 Flow', H.fgh3_flow.b2, PURPLE)],    't/h');
+
+  // KPIs — latest month
+  const last = lbl.length - 1;
+  const fmt1 = (arr) => arr[last]?.toFixed(1) || '—';
+  const fmt2 = (arr) => arr[last]?.toFixed(2) || '—';
+  document.getElementById('kpi-b1-drum').textContent  = fmt2(H.hp_drum_press.b1);
+  document.getElementById('kpi-b2-drum').textContent  = fmt2(H.hp_drum_press.b2);
+  document.getElementById('kpi-b1-stack').textContent = fmt1(H.stack_temp.b1);
+  document.getElementById('kpi-b2-stack').textContent = fmt1(H.stack_temp.b2);
+
+  // Flow diagram
+  document.getElementById('flow-exhaust').textContent = (H.gt_exhaust_temp.b2[last]?.toFixed(0)||'646') + ' °C';
+  document.getElementById('flow-stack').textContent   = (H.stack_temp.b2[last]?.toFixed(0)||'89') + ' °C';
+  document.getElementById('flow-hp-sh').textContent   = fmt2(H.hp_steam_press.b2) + ' MPa';
+}
+
+// Fetch live data.json, init charts
+fetch('data.json')
+  .then(r => r.json())
+  .then(json => {
+    if (json && json.hrsg) {
+      initCharts(json.hrsg);
+      if (json.meta && json.meta.date_range) {
+        document.querySelector('.page-subtitle').textContent =
+          'Live data: ' + json.meta.date_range.from + ' → ' + json.meta.date_range.to +
+          '  ·  Updated: ' + new Date(json.meta.generated_at).toLocaleDateString('en-GB');
+      }
+    }
+  })
+  .catch(err => console.warn('data.json not available:', err));
+
+setLang('en');
+</script>
+</body>
+</html>

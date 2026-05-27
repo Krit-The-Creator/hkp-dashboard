@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="th" data-lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Steam Turbine Analysis — HKP Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js" onerror="console.warn('Annotation plugin failed')"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#1c2128;
+    --border:#21262d; --border2:#30363d;
+    --text:#e6edf3; --text2:#8b949e; --text3:#484f58;
+    --blue:#58a6ff; --green:#3fb950; --red:#f85149;
+    --yellow:#d29922; --orange:#e3873a; --purple:#a371f7;
+    --accent:#1f6feb;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'Sarabun','Inter',sans-serif; margin:0; overflow-x:hidden; }
+
+  /* Sidebar */
+  .sidebar { width:220px; min-height:100vh; background:var(--surface); border-right:1px solid var(--border); position:fixed; left:0; top:0; display:flex; flex-direction:column; z-index:100; }
+  .sidebar-logo { padding:20px 18px 16px; border-bottom:1px solid var(--border); }
+  .plant-name { font-size:13px; font-weight:700; color:var(--blue); letter-spacing:1px; text-transform:uppercase; }
+  .sub-name { font-size:11px; color:var(--text2); margin-top:2px; }
+  .nav-section-label { font-size:10px; font-weight:600; color:var(--text3); letter-spacing:1.5px; text-transform:uppercase; padding:16px 18px 6px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:9px 18px; margin:1px 8px; border-radius:6px; cursor:pointer; font-size:13.5px; color:var(--text2); transition:all 0.15s; text-decoration:none; }
+  .nav-item:hover { background:var(--border); color:var(--text); }
+  .nav-item.active { background:#1f3a5f; color:var(--blue); font-weight:600; }
+
+  /* Topbar */
+  .topbar { margin-left:220px; height:56px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; position:sticky; top:0; z-index:50; }
+  .page-title { font-size:15px; font-weight:600; }
+  .page-subtitle { font-size:12px; color:var(--text2); margin-top:1px; }
+
+  /* Tab navigation */
+  .tab-nav { margin-left:220px; background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; display:flex; align-items:center; gap:2px; position:sticky; top:56px; z-index:40; }
+  .tab-btn {
+    padding:12px 16px; font-size:13px; font-weight:500; color:var(--text2);
+    background:transparent; border:none; border-bottom:2px solid transparent;
+    cursor:pointer; transition:all 0.15s; white-space:nowrap;
+    display:flex; align-items:center; gap:7px;
+  }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); font-weight:600; }
+  .tab-badge { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; border-radius:50%; font-size:10px; font-weight:700; }
+  .tab-badge.anomaly { background:rgba(248,81,73,0.15); color:var(--red); }
+  .tab-badge.ok { background:rgba(63,185,80,0.12); color:var(--green); }
+
+  /* Main content */
+  .main-content { margin-left:220px; padding:16px 20px; min-height:calc(100vh - 112px); }
+
+  /* Tab content sections */
+  .tab-section { display:none; }
+  .tab-section.active { display:block; }
+
+  /* Cards */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .card-title { font-size:12px; font-weight:600; color:var(--text2); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:12px; }
+
+  /* Section header inside tab */
+  .section-header {
+    display:flex; align-items:center; gap:10px; margin-bottom:14px; padding-bottom:10px;
+    border-bottom:1px solid var(--border);
+  }
+  .section-header-icon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; }
+  .section-header h2 { font-size:15px; font-weight:600; margin:0; }
+  .section-header p { font-size:12px; color:var(--text2); margin:2px 0 0; }
+
+  /* KPI */
+  .kpi-value { font-size:26px; font-weight:700; line-height:1.1; }
+  .kpi-unit { font-size:12px; color:var(--text2); margin-left:4px; font-weight:400; }
+  .kpi-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .kpi-badge.bad { background:rgba(248,81,73,0.12); color:var(--red); }
+  .kpi-badge.good { background:rgba(63,185,80,0.12); color:var(--green); }
+  .kpi-badge.warn { background:rgba(210,153,34,0.12); color:var(--yellow); }
+  .kpi-badge.neutral { background:rgba(139,148,158,0.12); color:var(--text2); }
+
+  /* Chart */
+  .chart-container { position:relative; width:100%; height:220px; }
+
+  /* DiD Table */
+  .did-table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  .did-table th { padding:8px 12px; text-align:left; font-size:11px; font-weight:600; color:var(--text3); border-bottom:1px solid var(--border); text-transform:uppercase; }
+  .did-table td { padding:9px 12px; border-bottom:1px solid var(--border); }
+  .did-table tr:last-child td { border-bottom:none; }
+  .val-pos { color:var(--red); font-weight:600; }
+  .val-neg { color:var(--green); font-weight:600; }
+
+  /* Legend row */
+  .legend-row { display:flex; gap:14px; font-size:11px; margin-bottom:8px; }
+  .legend-dot { width:12px; height:3px; border-radius:2px; display:inline-block; }
+
+  /* Outage label */
+  .outage-label { display:inline-flex; align-items:center; gap:5px; padding:3px 10px; background:rgba(248,81,73,0.1); border:1px solid rgba(248,81,73,0.3); border-radius:6px; font-size:11px; color:var(--red); font-weight:600; }
+
+  /* Lang toggle */
+  .lang-toggle { display:flex; align-items:center; background:var(--border); border-radius:20px; padding:3px; gap:2px; }
+  .lang-btn { padding:4px 12px; border-radius:16px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; color:var(--text2); border:none; background:transparent; }
+  .lang-btn.active { background:var(--blue); color:var(--bg); }
+
+  /* Param summary box */
+  .param-box { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:12px 14px; }
+  .param-box .label { font-size:11px; color:var(--text3); text-transform:uppercase; font-weight:600; margin-bottom:4px; }
+  .param-box .val { font-size:20px; font-weight:700; }
+  .param-box .sub { font-size:11px; color:var(--text2); margin-top:3px; }
+
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1f6feb,#58a6ff);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+      </div>
+      <div>
+        <div class="plant-name">HKP Power Plant</div>
+        <div class="sub-name" data-th="ระบบติดตามประสิทธิภาพโรงไฟฟ้า" data-en="Plant Performance Monitoring">Plant Performance Monitoring</div>
+      </div>
+    </div>
+  </div>
+  <nav style="flex:1;padding:8px 0;overflow-y:auto;">
+    <div class="nav-section-label">OVERVIEW</div>
+    <a class="nav-item" href="index.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span data-th="ภาพรวมระบบ" data-en="Overview">Overview</span>
+    </a>
+    <div class="nav-section-label">EQUIPMENT</div>
+    <a class="nav-item" href="gt_prototype.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      <span>Gas Turbine</span>
+    </a>
+    <a class="nav-item active" href="st_analysis.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      <span>Steam Turbine</span>
+    </a>
+    <a class="nav-item" href="hrsg_analysis.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span>HRSG</span>
+    </a>
+    <div class="nav-section-label" style="margin-top:8px;">REPORTS</div>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span data-th="รายงานประจำวัน" data-en="Daily Report">Daily Report</span>
+    </a>
+  </nav>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="page-title" data-th="วิเคราะห์ Steam Turbine — B1 vs B2" data-en="Steam Turbine Analysis — B1 vs B2">Steam Turbine Analysis — B1 vs B2</div>
+    <div class="page-subtitle" data-th="เปรียบเทียบก่อน/หลัง Planned Outage เม.ย. 2026" data-en="Pre/Post Planned Outage Apr 2026 Comparison">Pre/Post Planned Outage Apr 2026 Comparison</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <span class="outage-label">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span data-th="B2 Outage: เม.ย. 2026" data-en="B2 Outage: Apr 2026">B2 Outage: Apr 2026</span>
+    </span>
+    <div class="lang-toggle">
+      <button class="lang-btn" onclick="setLang('th')" id="btn-th">TH</button>
+      <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB NAVIGATION -->
+<div class="tab-nav">
+  <button class="tab-btn active" data-tab="overview" onclick="switchTab('overview')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    <span data-th="ภาพรวม" data-en="Overview">Overview</span>
+    <span class="tab-badge anomaly">!</span>
+  </button>
+  <button class="tab-btn" data-tab="hp" onclick="switchTab('hp')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M2 12h20"/></svg>
+    <span data-th="HP Main Steam" data-en="HP Main Steam">HP Main Steam</span>
+    <span class="tab-badge anomaly">!</span>
+  </button>
+  <button class="tab-btn" data-tab="hrh" onclick="switchTab('hrh')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 8l4 4-4 4M3 12h18"/></svg>
+    <span data-th="HRH / IP Steam" data-en="HRH / IP Steam">HRH / IP Steam</span>
+    <span class="tab-badge ok">✓</span>
+  </button>
+  <button class="tab-btn" data-tab="lp" onclick="switchTab('lp')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+    <span data-th="LP Main Steam" data-en="LP Main Steam">LP Main Steam</span>
+    <span class="tab-badge ok">✓</span>
+  </button>
+  <button class="tab-btn" data-tab="crh" onclick="switchTab('crh')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16l-4-4 4-4M21 12H3"/></svg>
+    <span data-th="CRH Steam" data-en="CRH Steam">CRH Steam</span>
+    <span class="tab-badge ok">✓</span>
+  </button>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+
+<!-- ==================== TAB: OVERVIEW ==================== -->
+<div id="tab-overview" class="tab-section active">
+
+  <!-- KPI Row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="DiD: ST Heat Rate" data-en="DiD: ST Heat Rate">DiD: ST Heat Rate</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--red);" id="kpi-did-sthr">+71.9</span>
+        <span class="kpi-unit">kJ/kWh</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge bad" data-th="B2-specific degradation" data-en="B2-specific degradation">B2-specific degradation</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="B2 แย่ลงขณะ B1 ดีขึ้น" data-en="B2 degraded while B1 improved">B2 degraded while B1 improved</div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HP Throttle DP (B2)" data-en="HP Throttle DP (B2)">HP Throttle DP (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--yellow);" id="kpi-throttle">-0.601</span>
+        <span class="kpi-unit">MPa</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge warn" data-th="+11% vs B1" data-en="+11% vs B1">+11% vs B1</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="HP Pressure Restriction เพิ่ม" data-en="HP Pressure Restriction increased">HP Pressure Restriction increased</div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="B2 ST HR (ล่าสุด)" data-en="B2 ST HR (Latest)">B2 ST HR (Latest)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--orange);" id="kpi-b2-sthr">9,161</span>
+        <span class="kpi-unit">kJ/kWh</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge bad" data-th="+47 vs B1" data-en="+47 vs B1">+47 vs B1</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="ก่อน outage B2 ดีกว่า B1 -12" data-en="Pre-outage B2 was -12 better than B1">Pre-outage B2 was -12 better than B1</div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD: GT Heat Rate" data-en="DiD: GT Heat Rate">DiD: GT Heat Rate</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--green);" id="kpi-did-gthr">-22.7</span>
+        <span class="kpi-unit">kJ/kWh</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge good" data-th="GT ดีขึ้น" data-en="GT improved">GT improved</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="GT maintenance ได้ผล" data-en="GT maintenance was effective">GT maintenance was effective</div>
+    </div>
+  </div>
+
+  <!-- Overview Charts 2x2 grids -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="ST Heat Rate (PI) — Monthly Median" data-en="ST Heat Rate (PI) — Monthly Median">ST Heat Rate (PI) — Monthly Median</div>
+      <div class="legend-row">
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-sthr"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HPCV Position — HP Control Valve" data-en="HPCV Position — HP Control Valve">HPCV Position — HP Control Valve</div>
+      <div class="legend-row">
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-hpcv-pos"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Turbine Inlet Steam Pressure" data-en="HP Turbine Inlet Steam Pressure">HP Turbine Inlet Steam Pressure</div>
+      <div class="chart-container"><canvas id="chart-hp-press"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="Condenser Vacuum Pressure" data-en="Condenser Vacuum Pressure">Condenser Vacuum Pressure</div>
+      <div class="chart-container"><canvas id="chart-vacuum"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="ST MW as % of Gross Power" data-en="ST MW as % of Gross Power">ST MW as % of Gross Power</div>
+      <div class="legend-row">
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-st-pct"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="Combined Cycle Heat Rate (Compensated)" data-en="Combined Cycle Heat Rate (Compensated)">Combined Cycle Heat Rate (Compensated)</div>
+      <div class="chart-container"><canvas id="chart-cc-hr"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HRSG Stack Temperature" data-en="HRSG Stack Temperature">HRSG Stack Temperature</div>
+      <div class="legend-row">
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> Block 1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> Block 2</span>
+      </div>
+      <div class="chart-container"><canvas id="chart-stack-temp"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="Heat Rate Margin (vs Target)" data-en="Heat Rate Margin (vs Target)">Heat Rate Margin (vs Target)</div>
+      <div class="chart-container"><canvas id="chart-margin"></canvas></div>
+    </div>
+  </div>
+
+  <!-- DiD Summary Table -->
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-title" data-th="Difference-in-Differences Summary (Pre: Jan–Mar 2026 vs Post: Apr–May 2026)" data-en="Difference-in-Differences Summary (Pre: Jan–Mar 2026 vs Post: Apr–May 2026)">Difference-in-Differences Summary (Pre: Jan–Mar 2026 vs Post: Apr–May 2026)</div>
+    <div style="overflow-x:auto;">
+      <table class="did-table">
+        <thead><tr>
+          <th data-th="พารามิเตอร์" data-en="Parameter">Parameter</th>
+          <th style="text-align:right;" data-th="B1 Δ" data-en="B1 Δ(Post-Pre)">B1 Δ(Post-Pre)</th>
+          <th style="text-align:right;" data-th="B2 Δ" data-en="B2 Δ(Post-Pre)">B2 Δ(Post-Pre)</th>
+          <th style="text-align:right;" data-th="DiD (B2-B1)" data-en="DiD (B2-B1)">DiD (B2-B1)</th>
+          <th data-th="หน่วย" data-en="Unit">Unit</th>
+          <th data-th="สถานะ" data-en="Status">Status</th>
+        </tr></thead>
+        <tbody id="did-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="text-align:center;font-size:11px;color:var(--text3);padding:8px 0 12px;">
+    HKP Steam Turbine Analysis · <span data-th="ข้อมูลจริงจาก PI Historian" data-en="Live data from PI Historian">Live data from PI Historian</span> · <span data-th="กรอง: Gross MW > 400" data-en="Filter: Gross MW > 400">Filter: Gross MW > 400</span>
+  </div>
+</div><!-- end tab-overview -->
+
+<!-- ==================== TAB: HP MAIN STEAM ==================== -->
+<div id="tab-hp" class="tab-section">
+  <div class="section-header">
+    <div class="section-header-icon" style="background:linear-gradient(135deg,rgba(248,81,73,0.2),rgba(248,81,73,0.1));">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="2"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="4"/></svg>
+    </div>
+    <div>
+      <h2 data-th="HP Main Steam — ไอน้ำความดันสูง" data-en="HP Main Steam — High Pressure Steam">HP Main Steam — High Pressure Steam</h2>
+      <p data-th="⚠ พบความผิดปกติ: HP Throttle ΔP เพิ่มขึ้น 11% หลัง Outage — บ่งชี้ valve restriction หรือ seal degradation" data-en="⚠ Anomaly detected: HP Throttle ΔP increased 11% post-outage — indicates valve restriction or seal degradation">⚠ Anomaly detected: HP Throttle ΔP increased 11% post-outage — indicates valve restriction or seal degradation</p>
+    </div>
+  </div>
+
+  <!-- HP KPI row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title">HP Main Steam Press (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-hp-main-press">15.54</span><span class="kpi-unit">MPa</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);" data-th="HRSG HP Steam Outlet" data-en="HRSG HP Steam Outlet">HRSG HP Steam Outlet</div>
+    </div>
+    <div class="card">
+      <div class="card-title">HP Turbine Inlet Press (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" style="color:var(--yellow);" id="kpi-hp-inlet-press">15.44</span><span class="kpi-unit">MPa</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);" data-th="หลัง throttle valve (ลดลง)" data-en="After throttle valve (reduced)">After throttle valve (reduced)</div>
+    </div>
+    <div class="card">
+      <div class="card-title">HP Throttle ΔP (B2 Post)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" style="color:var(--red);" id="kpi-hp-throttle-dp">-0.601</span><span class="kpi-unit">MPa</span></div>
+      <div style="margin-top:6px;"><span class="kpi-badge bad" data-th="เพิ่ม 11% vs B1" data-en="+11% vs B1">+11% vs B1</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title">HP Turbine Inlet Temp (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-hp-inlet-temp">568.5</span><span class="kpi-unit">°C</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);" data-th="Design: 571°C" data-en="Design: 571°C">Design: 571°C</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Main Steam Pressure — HRSG Outlet" data-en="HP Main Steam Pressure — HRSG Outlet">HP Main Steam Pressure — HRSG Outlet</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hp-main-press"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HP Main Steam Temperature — HRSG Outlet" data-en="HP Main Steam Temperature — HRSG Outlet">HP Main Steam Temperature — HRSG Outlet</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hp-main-temp"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Turbine Inlet Pressure (หลัง throttle)" data-en="HP Turbine Inlet Pressure (after throttle)">HP Turbine Inlet Pressure (after throttle)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hp-inlet-press2"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HP Throttle Pressure Drop ⚠ KEY" data-en="HP Throttle Pressure Drop ⚠ KEY">HP Throttle Pressure Drop ⚠ KEY</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hp-throttle2"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Turbine Inlet Temperature" data-en="HP Turbine Inlet Temperature">HP Turbine Inlet Temperature</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hp-inlet-temp2"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HP Turbine Exhaust Temperature (→ CRH)" data-en="HP Turbine Exhaust Temperature (→ CRH)">HP Turbine Exhaust Temperature (→ CRH)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hp-exhaust-temp"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HP Turbine Exhaust Pressure (= CRH Inlet)" data-en="HP Turbine Exhaust Pressure (= CRH Inlet)">HP Turbine Exhaust Pressure (= CRH Inlet)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hp-exhaust-press"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HP Steam Enthalpy at HRSG Outlet" data-en="HP Steam Enthalpy at HRSG Outlet">HP Steam Enthalpy at HRSG Outlet</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-enthalpy-hp"></canvas></div>
+    </div>
+  </div>
+  <!-- Throttle Loss % — diagnostic chart -->
+  <div style="background:rgba(248,81,73,0.05);border:1px solid rgba(248,81,73,0.2);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f85149" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      <span style="font-size:12px;font-weight:600;color:var(--red);" data-th="HP Throttle Loss % — Offline Data (วัดทั้งก่อน-หลัง Control Valve)" data-en="HP Throttle Loss % — Offline Data (actual pre/post valve measurements)">HP Throttle Loss % — Offline Data (actual pre/post valve measurements)</span>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px;"
+    >= |ΔP| ÷ HP Main Steam Press × 100% (จากข้อมูล Offline จริง) — B2 สูงกว่า B1 มาตั้งแต่ก.ค. 2568 (+0.03–0.05%) ก่อน Outage; หลัง Outage gap ลดลงเป็น +0.020% ← Chronic pre-existing condition, NOT outage-caused</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div>
+        <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+        <div class="chart-container"><canvas id="chart-hp-throttle-loss-pct"></canvas></div>
+      </div>
+      <div style="display:flex;flex-direction:column;justify-content:center;gap:10px;padding:0 8px;">
+        <div class="param-box">
+          <div class="label">Pre-Outage (Jan–Mar 2026)</div>
+          <div class="val" style="font-size:15px;">B1: <span style="color:var(--blue);">0.562%</span> &nbsp;|&nbsp; B2: <span style="color:var(--red);">0.588%</span></div>
+          <div class="sub">B2 สูงกว่า B1 +0.026% (Chronic ตั้งแต่ ก.ค. 2568, ยกเว้น Low-load & Outage days)</div>
+        </div>
+        <div class="param-box" style="border-color:rgba(63,185,80,0.4);">
+          <div class="label" style="color:var(--green);">Post-Outage (Apr–May 2026)</div>
+          <div class="val" style="font-size:15px;">B1: <span style="color:var(--blue);">0.570%</span> &nbsp;|&nbsp; B2: <span style="color:var(--red);">0.593%</span></div>
+          <div class="sub" style="color:var(--green);">Gap ลดลงเล็กน้อยเป็น +0.020% ← ดีขึ้นหลัง Outage</div>
+        </div>
+        <div class="param-box">
+          <div class="label">DiD (B2−B1 Change pre→post)</div>
+          <div class="val" style="font-size:17px;color:var(--green);">−0.006%</div>
+          <div class="sub">Throttle restriction <b>ไม่ได้แย่ลง</b>หลัง Outage — Chronic condition</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HP Inlet Pressure Post-Valve + Expansion Ratio — from Offline Data -->
+  <div style="background:rgba(88,166,255,0.05);border:1px solid rgba(88,166,255,0.2);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span style="font-size:12px;font-weight:600;color:var(--blue);">HP Turbine Inlet Pressure (After HPCV) — Offline GTC9 Data</span>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px;">
+      ค่าจริงจากฐานข้อมูล Offline (MAA00CP101-103) วัดหลัง HP Control Valve โดยตรง — B2 post-outage ต่ำกว่า B1 สะท้อน HP Main Steam Pressure ที่ต่างกัน
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div>
+        <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1 HP Inlet (after valve)</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2 HP Inlet (after valve)</span></div>
+        <div class="chart-container"><canvas id="chart-hp-inlet-press"></canvas></div>
+      </div>
+      <div>
+        <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1 Expansion Ratio</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2 Expansion Ratio</span></div>
+        <div class="chart-container"><canvas id="chart-hp-expansion-ratio"></canvas></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+      <div class="param-box" style="border-color:rgba(248,81,73,0.4);">
+        <div class="label" style="color:var(--red);">HP Expansion Ratio — Post-Outage</div>
+        <div class="val" style="font-size:15px;">B1: <span style="color:var(--blue);">4.245</span> &nbsp;|&nbsp; B2: <span style="color:var(--red);">4.199</span></div>
+        <div class="sub" style="color:var(--red);">B2 ต่ำกว่า B1 −0.046 หลัง Outage (Pre: −0.022) → DiD = −0.024</div>
+      </div>
+      <div class="param-box">
+        <div class="label">การตีความ</div>
+        <div class="val" style="font-size:12px;line-height:1.6;">B2 HP Expansion Ratio ลดลงสัมพัทธ์กับ B1 หลัง Outage<br>→ HP Section ทำงานได้ไม่เต็มศักยภาพเทียบกับ B1</div>
+      </div>
+    </div>
+  </div>
+</div><!-- end tab-hp -->
+
+<!-- ==================== TAB: HRH / IP STEAM ==================== -->
+<div id="tab-hrh" class="tab-section">
+  <div class="section-header">
+    <div class="section-header-icon" style="background:linear-gradient(135deg,rgba(88,166,255,0.2),rgba(88,166,255,0.1));">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2"><path d="M17 8l4 4-4 4M3 12h18"/></svg>
+    </div>
+    <div>
+      <h2 data-th="HRH / IP Main Steam — ไอน้ำ Reheat & IP" data-en="HRH / IP Main Steam — Hot Reheat & IP Steam">HRH / IP Main Steam — Hot Reheat & IP Steam</h2>
+      <p data-th="✓ ไม่พบความผิดปกติ — HRH/IP steam อยู่ในเกณฑ์ปกติทั้ง B1 และ B2" data-en="✓ No anomaly — HRH/IP steam parameters normal for both B1 and B2">✓ No anomaly — HRH/IP steam parameters normal for both B1 and B2</p>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title">HRH Steam Press (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-hrh-press">3.40</span><span class="kpi-unit">MPa</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">Hot Reheat Inlet</div>
+    </div>
+    <div class="card">
+      <div class="card-title">HRH Steam Temp (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-hrh-temp">555.8</span><span class="kpi-unit">°C</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">Design: 560°C</div>
+    </div>
+    <div class="card">
+      <div class="card-title">HRH Steam Flow (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-hrh-flow">482.9</span><span class="kpi-unit">t/h</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">IP + LP injection</div>
+    </div>
+    <div class="card">
+      <div class="card-title">IP Main Steam Press (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-ip-press">3.34</span><span class="kpi-unit">MPa</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">HRSG IP Outlet</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HRH Steam Pressure" data-en="HRH Steam Pressure">HRH Steam Pressure</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hrh-press"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HRH Steam Temperature" data-en="HRH Steam Temperature">HRH Steam Temperature</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hrh-temp2"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="HRH Steam Flow" data-en="HRH Steam Flow">HRH Steam Flow</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hrh-flow"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="HRH Steam Enthalpy" data-en="HRH Steam Enthalpy">HRH Steam Enthalpy</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-hrh-enthalpy"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="IP Main Steam Pressure (HRSG Outlet)" data-en="IP Main Steam Pressure (HRSG Outlet)">IP Main Steam Pressure (HRSG Outlet)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-ip-press"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="IP Steam Temperature" data-en="IP Steam Temperature">IP Steam Temperature</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-ip-temp"></canvas></div>
+    </div>
+  </div>
+  <!-- HRH Energy Analysis -->
+  <div style="background:rgba(227,135,58,0.05);border:1px solid rgba(227,135,58,0.25);border-radius:10px;padding:14px;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#e3873a" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span style="font-size:12px;font-weight:600;color:var(--orange);" data-th="HRH Energy Shift — สัญญาณ Energy Redistribution จาก HP" data-en="HRH Energy Shift — Energy Redistribution Signal from HP Stage">HRH Energy Shift — Energy Redistribution Signal from HP Stage</span>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:10px;" data-th="HRH Energy = HRH_Flow × h_HRH (GJ/h) — B2 เปลี่ยนจากต่ำกว่า B1 → สูงกว่า B1 หลัง Outage (HP restriction → CRH มีพลังงานเหลือมากขึ้น → HRH สูงขึ้น)" data-en="HRH Energy = HRH_Flow × h_HRH (GJ/h) — B2 shifts from below B1 → above B1 post-outage (HP restriction → CRH retains more energy → HRH rises)"
+    >HRH Energy = HRH_Flow × h_HRH — B2 shifts from below B1 → above B1 post-outage (HP restriction → CRH retains more energy → IP receives more)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+      <div class="card" style="background:var(--surface2);border-color:var(--border);">
+        <div class="card-title">HRH Steam Energy (GJ/h)</div>
+        <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> B2</span></div>
+        <div class="chart-container"><canvas id="chart-hrh-energy"></canvas></div>
+      </div>
+      <div class="card" style="background:var(--surface2);border-color:var(--border);">
+        <div class="card-title">HP Energy vs HRH Energy — B2 Monthly</div>
+        <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--orange);"></span> HP Energy (B2)</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--purple);"></span> HRH Energy (B2)</span></div>
+        <div class="chart-container"><canvas id="chart-hp-hrh-energy-b2"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div><!-- end tab-hrh -->
+
+<!-- ==================== TAB: LP MAIN STEAM ==================== -->
+<div id="tab-lp" class="tab-section">
+  <div class="section-header">
+    <div class="section-header-icon" style="background:linear-gradient(135deg,rgba(63,185,80,0.2),rgba(63,185,80,0.1));">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3fb950" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></svg>
+    </div>
+    <div>
+      <h2 data-th="LP Main Steam — ไอน้ำความดันต่ำ" data-en="LP Main Steam — Low Pressure Steam">LP Main Steam — Low Pressure Steam</h2>
+      <p data-th="✓ ไม่พบความผิดปกติ — LP steam parameters ทั้ง 2 Unit อยู่ในเกณฑ์ปกติ" data-en="✓ No anomaly — LP steam parameters within normal range for both units">✓ No anomaly — LP steam parameters within normal range for both units</p>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title">LP Main Steam Press (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-lp-main-press">0.45</span><span class="kpi-unit">MPa</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">HRSG LP Outlet</div>
+    </div>
+    <div class="card">
+      <div class="card-title">LP Main Steam Temp (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-lp-main-temp">288.8</span><span class="kpi-unit">°C</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">HRSG LP Outlet</div>
+    </div>
+    <div class="card">
+      <div class="card-title">LP Steam Press at ST (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-lp-steam-press">0.49</span><span class="kpi-unit">MPa</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">At ST LP Inlet</div>
+    </div>
+    <div class="card">
+      <div class="card-title">Condenser Vacuum (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-vacuum2">7.90</span><span class="kpi-unit">kPa</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">LP Exhaust Pressure</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="LP Main Steam Pressure (HRSG Outlet)" data-en="LP Main Steam Pressure (HRSG Outlet)">LP Main Steam Pressure (HRSG Outlet)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--green);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-lp-main-press"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="LP Main Steam Temperature (HRSG Outlet)" data-en="LP Main Steam Temperature (HRSG Outlet)">LP Main Steam Temperature (HRSG Outlet)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--green);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-lp-main-temp"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="LP Steam Pressure at ST Inlet" data-en="LP Steam Pressure at ST Inlet">LP Steam Pressure at ST Inlet</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--green);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-lp-steam-press"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="LP Steam Temperature at ST Inlet" data-en="LP Steam Temperature at ST Inlet">LP Steam Temperature at ST Inlet</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--green);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-lp-steam-temp"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="LP Steam Enthalpy" data-en="LP Steam Enthalpy">LP Steam Enthalpy</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--green);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-lp-enthalpy"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="Condenser Vacuum Pressure (LP Exhaust)" data-en="Condenser Vacuum Pressure (LP Exhaust)">Condenser Vacuum Pressure (LP Exhaust)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--green);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-vacuum-lp"></canvas></div>
+    </div>
+  </div>
+</div><!-- end tab-lp -->
+
+<!-- ==================== TAB: CRH STEAM ==================== -->
+<div id="tab-crh" class="tab-section">
+  <div class="section-header">
+    <div class="section-header-icon" style="background:linear-gradient(135deg,rgba(163,113,247,0.2),rgba(163,113,247,0.1));">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a371f7" stroke-width="2"><path d="M7 16l-4-4 4-4M21 12H3"/></svg>
+    </div>
+    <div>
+      <h2 data-th="CRH Steam — Cold Reheat (HP Exhaust → Reheater)" data-en="CRH Steam — Cold Reheat (HP Exhaust → Reheater)">CRH Steam — Cold Reheat (HP Exhaust → Reheater)</h2>
+      <p data-th="✓ ไม่พบความผิดปกติ — CRH steam ผ่าน HP Turbine ปกติ" data-en="✓ No anomaly — CRH steam from HP Turbine exhaust within normal range">✓ No anomaly — CRH steam from HP Turbine exhaust within normal range</p>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title">CRH Steam Press (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-crh-press">3.68</span><span class="kpi-unit">MPa</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">HP Turbine Exhaust</div>
+    </div>
+    <div class="card">
+      <div class="card-title">CRH Steam Temp (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-crh-temp">352.2</span><span class="kpi-unit">°C</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">HP Exhaust to Reheater</div>
+    </div>
+    <div class="card">
+      <div class="card-title">CRH Steam Flow (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-crh-flow">449.8</span><span class="kpi-unit">t/h</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">To IP Reheater</div>
+    </div>
+    <div class="card">
+      <div class="card-title">CRH Steam Enthalpy (B2)</div>
+      <div style="display:flex;align-items:baseline;gap:4px;"><span class="kpi-value" id="kpi-crh-enthalpy">3,103.7</span><span class="kpi-unit">kJ/kg</span></div>
+      <div style="margin-top:6px;font-size:11px;color:var(--text2);">HP Exhaust steam quality</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="CRH Steam Pressure (HP Turbine Exhaust)" data-en="CRH Steam Pressure (HP Turbine Exhaust)">CRH Steam Pressure (HP Turbine Exhaust)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--purple);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-crh-press"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="CRH Steam Temperature (HP Turbine Exhaust)" data-en="CRH Steam Temperature (HP Turbine Exhaust)">CRH Steam Temperature (HP Turbine Exhaust)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--purple);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-crh-temp"></canvas></div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="CRH Steam Flow (HP Exhaust → Reheater)" data-en="CRH Steam Flow (HP Exhaust → Reheater)">CRH Steam Flow (HP Exhaust → Reheater)</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--purple);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-crh-flow"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="CRH Steam Enthalpy" data-en="CRH Steam Enthalpy">CRH Steam Enthalpy</div>
+      <div class="legend-row"><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> B1</span><span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--purple);"></span> B2</span></div>
+      <div class="chart-container"><canvas id="chart-crh-enthalpy"></canvas></div>
+    </div>
+  </div>
+</div><!-- end tab-crh -->
+
+</div><!-- end main-content -->
+
+<!-- SCRIPTS -->
+<script>
+let currentLang = 'en';
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('btn-th').classList.toggle('active', lang === 'th');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.querySelectorAll('[data-th][data-en]').forEach(el => {
+    el.textContent = el.getAttribute('data-' + lang);
+  });
+}
+
+// Tab switching with lazy chart init
+const tabInited = {};
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  document.querySelector('[data-tab="' + tabId + '"]').classList.add('active');
+  if (!tabInited[tabId]) { tabInited[tabId] = true; initTab(tabId); }
+}
+
+// Chart defaults
+Chart.defaults.color = '#8b949e';
+Chart.defaults.font.family = "'Sarabun','Inter',sans-serif";
+Chart.defaults.font.size = 11;
+
+const BLUE = '#58a6ff', RED = '#f85149', GREEN = '#3fb950', YELLOW = '#d29922', PURPLE = '#a371f7', ORANGE = '#e3873a';
+const GRID = '#21262d', BORDER = '#30363d';
+
+const outageAnnotation = {
+  type: 'box', xMin: 7.5, xMax: 8.5,
+  backgroundColor: 'rgba(248,81,73,0.06)', borderColor: 'rgba(248,81,73,0.3)',
+  borderWidth: 1, borderDash: [4,4],
+  label: { display: true, content: 'Outage', position: 'start', color: RED, font: { size: 10, weight: 600 } }
+};
+
+function makeChart(canvasId, labels, datasets, yLabel, customAnnotations) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return null;
+  const ctx = canvas.getContext('2d');
+  const hasAnnotation = typeof Chart.registry !== 'undefined' && Chart.registry.plugins?.get('annotation');
+  const pluginOpts = {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: '#21262d', borderColor: BORDER, borderWidth: 1,
+      titleColor: '#e6edf3', bodyColor: '#8b949e',
+      callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.y?.toLocaleString(undefined, {maximumFractionDigits:2})} ${yLabel}` }
+    }
+  };
+  if (hasAnnotation) pluginOpts.annotation = { annotations: customAnnotations || { outage: outageAnnotation } };
+  return new Chart(ctx, {
+    type: 'line', data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: pluginOpts,
+      scales: {
+        x: { grid: { color: GRID }, border: { color: BORDER } },
+        y: { grid: { color: GRID }, border: { color: BORDER }, ticks: { callback: v => v.toLocaleString() } }
+      }
+    }
+  });
+}
+
+function ds(label, data, color, dashed) {
+  return {
+    label, data, borderColor: color, backgroundColor: color + '18',
+    borderWidth: 2, borderDash: dashed ? [5,3] : [],
+    pointRadius: 3, pointHoverRadius: 5, pointBackgroundColor: color,
+    tension: 0.3, fill: false
+  };
+}
+
+// ===== STATIC DATA (legacy analysis \u2014 used by HP/HRH/LP/CRH detail tabs) =====
+const DATA = {"meta":{"generated_at":"2026-05-19T10:00:00+07:00","source_file":"Block 1 & 2 Heat Rate Analysis Complete.xlsx","analysis_version":"2.0","filter":"GROSS POWER > 400 MW"},"st_analysis":{"months":["2025-08","2025-09","2025-10","2025-11","2025-12","2026-01","2026-02","2026-03","2026-04","2026-05"],"st_hr_pi":{"b1":[9194.72,9200.86,9197.51,9189.84,9155.49,9159.76,9110.49,9115.08,9100.83,9114.28],"b2":[9168.65,9175.9,9182.58,9185.04,9156.72,9148.73,9098.04,9103.04,9164.19,9161.32]},"hp_throttle_dp":{"b1":[-0.51,-0.51,-0.51,-0.5,-0.51,-0.5,-0.52,-0.53,-0.55,-0.54],"b2":[-0.48,-0.48,-0.49,-0.48,-0.49,-0.48,-0.5,-0.51,-0.6,-0.6]},"hp_inlet_press":{"b1":[14.72,14.73,14.78,14.68,14.8,14.64,15.34,15.3,15.67,15.56],"b2":[14.77,14.76,14.81,14.71,14.74,14.59,15.31,15.23,15.42,15.44]},"condenser_vacuum":{"b1":[7.26,7.43,7.44,7.03,6.75,6.32,7.23,7.31,7.85,7.86],"b2":[7.4,7.55,7.58,7.39,6.88,6.38,7.37,7.45,7.87,7.9]},"enthalpy_diff_hp_crh":{"b1":[394.04,393.46,392.47,392.44,389.98,388.93,389.51,390.97,391.6,389.7],"b2":[394.11,393.81,393.62,391.97,390.14,388.29,388.6,389.14,389.97,389.27]},"heat_rate_compensate":{"b1":[6188.71,6201.55,6200.53,6209.4,6170.07,6167.87,6162.98,6164.3,6144.04,6145.64],"b2":[6198.47,6209.39,6207.47,6213.8,6201.97,6195.79,6184.83,6187.08,6172.33,6171.08]},"hrh_temp":{"b1":[556.77,556.31,555.99,555.92,553.71,552.48,554.46,556.09,557.84,555.72],"b2":[558.02,557.88,557.65,555.86,554.48,552.81,554.64,555.58,556.16,555.78]},"heat_rate_margin":{"b1":[6.06,-2.27,-12.91,13.94,-19.24,-15.56,-25.42,-22.96,-9.23,-13.4],"b2":[-37.43,-43.72,-48.66,-50.54,-52.41,-41.71,-50.44,-48.59,-39.68,-39.97]},"hp_main_steam_press":{"b1":[14.81,14.82,14.87,14.77,14.89,14.73,15.44,15.4,15.77,15.66],"b2":[14.87,14.86,14.91,14.8,14.84,14.68,15.41,15.33,15.52,15.54]},"hp_main_steam_temp":{"b1":[570.1,569.63,568.97,568.8,566.53,565.34,566.68,568.32,569.75,567.7],"b2":[571.76,571.64,571.0,569.08,567.53,565.8,566.99,567.9,568.35,568.11]},"hp_turbine_inlet_temp":{"b1":[570.67,570.12,569.67,569.52,567.31,566.25,567.52,569.2,570.59,568.56],"b2":[572.62,572.41,571.83,569.82,568.31,566.57,567.81,568.73,568.6,568.52]},"hp_turbine_exhaust_temp":{"b1":[354.21,353.87,353.49,353.31,351.71,351.13,351.25,352.3,352.85,351.75],"b2":[355.98,355.98,355.34,353.84,353.09,352.03,352.34,353.13,353.2,353.21]},"hp_turbine_exhaust_press":{"b1":[3.5,3.5,3.51,3.49,3.51,3.48,3.63,3.61,3.69,3.67],"b2":[3.51,3.51,3.52,3.5,3.51,3.49,3.64,3.62,3.67,3.68]},"enthalpy_hp":{"b1":[3504.9,3503.55,3501.13,3501.13,3493.83,3492.05,3490.23,3494.23,3494.91,3490.46],"b2":[3508.57,3508.27,3506.06,3500.71,3496.58,3492.36,3491.4,3493.87,3493.88,3493.09]},"hrh_steam_press":{"b1":[3.24,3.24,3.25,3.23,3.25,3.22,3.36,3.35,3.41,3.4],"b2":[3.24,3.24,3.25,3.23,3.24,3.22,3.37,3.35,3.4,3.4]},"hrh_steam_flow":{"b1":[461.06,461.49,462.49,460.44,462.7,459.31,476.72,473.79,481.79,480.01],"b2":[458.44,458.23,460.25,459.97,460.93,458.31,475.98,472.93,482.12,482.94]},"enthalpy_hrh":{"b1":[3581.59,3580.59,3579.58,3579.42,3574.28,3571.79,3575.51,3579.26,3582.78,3578.01],"b2":[3584.95,3584.64,3583.86,3579.82,3576.71,3572.91,3576.43,3578.58,3579.63,3578.73]},"ip_steam_press":{"b1":[3.49,3.49,3.5,3.48,3.5,3.47,3.62,3.6,3.67,3.66],"b2":[3.49,3.49,3.5,3.48,3.49,3.47,3.62,3.6,3.66,3.66]},"ip_steam_temp":{"b1":[338.57,338.68,338.95,338.71,339.12,338.56,340.92,340.86,342.12,341.76],"b2":[337.85,337.78,338.05,337.76,337.54,336.98,338.92,338.67,338.77,339.05]},"ip_main_press":{"b1":[3.18,3.18,3.19,3.17,3.19,3.16,3.3,3.29,3.35,3.34],"b2":[3.18,3.18,3.19,3.18,3.19,3.16,3.31,3.29,3.34,3.34]},"lp_main_steam_press":{"b1":[0.41,0.41,0.42,0.42,0.42,0.42,0.43,0.43,0.44,0.44],"b2":[0.43,0.43,0.43,0.43,0.43,0.43,0.45,0.44,0.45,0.45]},"lp_main_steam_temp":{"b1":[289.17,289.27,289.36,289.11,289.56,289.21,290.44,290.21,291.46,291.24],"b2":[286.83,286.75,287.01,287.12,286.46,286.46,287.3,287.3,288.05,288.77]},"lp_steam_press":{"b1":[0.46,0.46,0.46,0.46,0.46,0.46,0.48,0.47,0.48,0.48],"b2":[0.47,0.47,0.47,0.47,0.48,0.47,0.49,0.49,0.49,0.49]},"lp_steam_temp":{"b1":[291.2,291.3,291.4,291.18,291.64,291.28,292.47,292.22,293.46,293.27],"b2":[288.61,288.53,288.8,288.91,288.23,288.22,289.02,289.02,289.24,289.96]},"enthalpy_lp":{"b1":[3041.83,3042.23,3042.28,3041.64,3042.44,3042.02,3043.87,3043.57,3045.92,3045.52],"b2":[3036.65,3036.49,3036.99,3037.2,3035.77,3035.87,3037.01,3037.08,3038.66,3040.19]},"crh_steam_press":{"b1":[3.51,3.51,3.52,3.49,3.52,3.49,3.64,3.62,3.69,3.67],"b2":[3.5,3.5,3.51,3.49,3.5,3.48,3.63,3.61,3.67,3.68]},"crh_steam_temp":{"b1":[353.64,353.29,352.81,352.61,350.93,350.32,350.47,351.53,352.15,350.92],"b2":[354.98,354.98,354.28,352.8,351.97,350.88,351.25,352.04,352.15,352.18]},"crh_steam_flow":{"b1":[426.9,427.0,428.26,425.56,428.09,423.66,443.08,441.22,450.81,447.91],"b2":[427.12,427.02,429.32,427.19,428.48,423.84,443.45,440.53,449.9,449.76]},"enthalpy_crh":{"b1":[3111.19,3110.28,3108.86,3108.62,3104.19,3103.46,3100.69,3103.24,3103.22,3100.68],"b2":[3114.48,3114.47,3112.47,3108.9,3106.76,3104.31,3102.69,3104.74,3103.96,3103.69]},"hp_throttle_loss_pct":{"b1":[0.5637,0.5601,0.5582,0.5557,0.5590,0.5591,0.5618,0.5637,0.5700,0.5707],"b2":[0.5924,0.6014,0.6043,0.5992,0.5909,0.5870,0.5891,0.5865,0.5944,0.5910]},"hp_inlet_press":{"b1":[14.720,14.718,14.786,14.814,14.824,14.660,15.401,15.210,15.705,15.568],"b2":[14.785,14.719,14.812,14.806,14.738,14.653,15.363,15.186,15.432,15.468]},"hp_main_press_offline":{"b1":[14.805,14.800,14.869,14.896,14.908,14.742,15.488,15.297,15.795,15.657],"b2":[14.872,14.807,14.903,14.894,14.825,14.740,15.453,15.277,15.526,15.559]},"hp_expansion_ratio":{"b1":[4.2130,4.2116,4.2135,4.2148,4.2137,4.2100,4.2288,4.2402,4.2509,4.2403],"b2":[4.2142,4.2151,4.2147,4.2031,4.1939,4.1898,4.2057,4.2118,4.1981,4.1993]},"cond_vac_offline":{"b1":[7.324,7.510,7.528,7.369,6.829,6.377,7.323,7.418,7.945,7.872],"b2":[7.456,7.607,7.632,7.594,6.898,6.451,7.408,7.496,7.911,7.866]},"hrh_energy":{"b1":[1.6512,1.6524,1.6553,1.6481,1.6534,1.6405,1.7045,1.6959,1.7256,1.7175],"b2":[1.6430,1.6423,1.6496,1.6466,1.6491,1.6372,1.7023,1.6924,1.7248,1.7283]},"hp_energy":{"b1":[1.4961,1.4960,1.5000,1.4905,1.4960,1.4793,1.5462,1.5421,1.5752,1.5630],"b2":[1.4988,1.4983,1.5054,1.4955,1.4984,1.4797,1.5480,1.5390,1.5718,1.5711]}},"did_summary":[{"label":"ST Heat Rate (PI)","b1_delta":-26.17,"b2_delta":45.73,"did":71.9,"unit":"kJ/kWh"},{"label":"ST Heat Rate (Calc)","b1_delta":15.21,"b2_delta":83.41,"did":68.2,"unit":"kJ/kWh"},{"label":"GT Heat Rate","b1_delta":41.73,"b2_delta":18.99,"did":-22.73,"unit":"kJ/kWh"},{"label":"CC Heat Rate Compensate","b1_delta":-20.27,"b2_delta":-18.47,"did":1.8,"unit":"kJ/kWh"},{"label":"HP Throttle \u0394P","b1_delta":-0.03,"b2_delta":-0.1,"did":-0.07,"unit":"MPa"},{"label":"Condenser Vacuum","b1_delta":0.83,"b2_delta":0.75,"did":-0.08,"unit":"kPa"},{"label":"HP Inlet Press","b1_delta":0.64,"b2_delta":0.51,"did":-0.14,"unit":"MPa"},{"label":"HRH Steam Temp","b1_delta":2.44,"b2_delta":1.38,"did":-1.06,"unit":"\u00b0C"}]};
+
+// ===== LIVE DATA (fetched from data.json) =====
+let LIVE = null;
+
+// ===== CHART INIT FUNCTIONS =====
+function initTab(tabId) {
+  const st = DATA.st_analysis;
+  const labels = st.months;
+
+  if (tabId === 'overview') {
+    // Use LIVE data.json if available, otherwise fall back to static DATA
+    if (LIVE && LIVE.st) {
+      const L = LIVE.st;
+      const H = LIVE.hrsg;
+      const lbl = L.hr_st.months;
+
+      // Compute outage annotation position dynamically
+      const outIdx = lbl.indexOf('2026-04');
+      const ovAnno = outIdx >= 0
+        ? { outage: { ...outageAnnotation, xMin: outIdx - 0.5, xMax: outIdx + 0.5 } }
+        : { outage: outageAnnotation };
+
+      makeChart('chart-sthr',    lbl, [ds('B1 ST HR', L.hr_st.b1, BLUE),         ds('B2 ST HR', L.hr_st.b2, RED)],         'BTU/kWh', ovAnno);
+      makeChart('chart-hpcv-pos',lbl, [ds('B1 HPCV',  L.hpcv_pos.b1, BLUE),      ds('B2 HPCV',  L.hpcv_pos.b2, RED)],      '%',        ovAnno);
+      makeChart('chart-hp-press',lbl, [ds('B1 HP Inlet', L.hp_turb_inlet.b1, BLUE), ds('B2 HP Inlet', L.hp_turb_inlet.b2, RED)], 'MPa', ovAnno);
+      makeChart('chart-vacuum',  lbl, [ds('B1 Vacuum', L.condenser_vac.b1, BLUE), ds('B2 Vacuum', L.condenser_vac.b2, RED)], 'kPa',    ovAnno);
+      makeChart('chart-st-pct',  lbl, [ds('B1 ST%',   L.st_pct_gross.b1, BLUE),   ds('B2 ST%',   L.st_pct_gross.b2, RED)],  '%',       ovAnno);
+      makeChart('chart-cc-hr',   lbl, [ds('B1 CC HR', L.hr_plant.b1, BLUE),       ds('B2 CC HR', L.hr_plant.b2, RED)],      'BTU/kWh', ovAnno);
+      makeChart('chart-stack-temp', lbl,
+        [ds('B1 Stack T', H && H.stack_temp ? H.stack_temp.b1 : [], BLUE),
+         ds('B2 Stack T', H && H.stack_temp ? H.stack_temp.b2 : [], RED)], '°C', ovAnno);
+      makeChart('chart-margin',  lbl, [ds('B1 Margin', L.hr_margin.b1, BLUE), ds('B2 Margin', L.hr_margin.b2, RED)], 'BTU/kWh',
+        { ...ovAnno, zeroLine: { type:'line', yMin:0, yMax:0, borderColor:'#484f58', borderWidth:1, borderDash:[3,3] } });
+
+      // Update B2 ST HR KPI from live data
+      const kpi = LIVE.kpi;
+      if (kpi && kpi.b2) {
+        document.getElementById('kpi-b2-sthr').textContent = kpi.b2.hr_st ? kpi.b2.hr_st.toLocaleString(undefined, {maximumFractionDigits:0}) : '—';
+        const b1Latest = kpi.b1 ? kpi.b1.hr_st : null;
+        const b2Latest = kpi.b2.hr_st;
+        if (b1Latest && b2Latest) {
+          const diff = b2Latest - b1Latest;
+          const badge = document.querySelector('#kpi-b2-sthr').closest('.card').querySelector('.kpi-badge');
+          if (badge) badge.textContent = (diff >= 0 ? '+' : '') + Math.round(diff) + ' vs B1';
+        }
+      }
+      // Meta: show data date range
+      if (LIVE.meta && LIVE.meta.date_range) {
+        document.querySelector('.page-subtitle').textContent =
+          'Live data: ' + LIVE.meta.date_range.from + ' → ' + LIVE.meta.date_range.to +
+          '  ·  Updated: ' + new Date(LIVE.meta.generated_at).toLocaleDateString('en-GB');
+      }
+    } else {
+      // Fallback: use static inline data
+      makeChart('chart-sthr',     labels, [ds('B1 ST HR', st.st_hr_pi.b1, BLUE),          ds('B2 ST HR', st.st_hr_pi.b2, RED)],          'kJ/kWh');
+      makeChart('chart-hpcv-pos', labels, [ds('B1 ΔP',    st.hp_throttle_dp.b1, BLUE),    ds('B2 ΔP',    st.hp_throttle_dp.b2, RED)],    'MPa');
+      makeChart('chart-hp-press', labels, [ds('B1 HP Inlet', st.hp_inlet_press.b1, BLUE), ds('B2 HP Inlet', st.hp_inlet_press.b2, RED)], 'MPa');
+      makeChart('chart-vacuum',   labels, [ds('B1 Vacuum', st.condenser_vacuum.b1, BLUE), ds('B2 Vacuum', st.condenser_vacuum.b2, RED)], 'kPa');
+      makeChart('chart-st-pct',   labels, [ds('B1 ΔH',    st.enthalpy_diff_hp_crh.b1, BLUE), ds('B2 ΔH', st.enthalpy_diff_hp_crh.b2, RED)], 'kJ/kg');
+      makeChart('chart-cc-hr',    labels, [ds('B1 CC HR', st.heat_rate_compensate.b1, BLUE), ds('B2 CC HR', st.heat_rate_compensate.b2, RED)], 'kJ/kWh');
+      makeChart('chart-stack-temp', labels, [ds('B1 HRH T', st.hrh_temp.b1, BLUE),         ds('B2 HRH T', st.hrh_temp.b2, RED)],         '°C');
+      makeChart('chart-margin',   labels,
+        [ds('B1 Margin', st.heat_rate_margin.b1, BLUE), ds('B2 Margin', st.heat_rate_margin.b2, RED)],
+        'kJ/kWh', { outage: outageAnnotation, zeroLine: { type:'line', yMin:0, yMax:0, borderColor:'#484f58', borderWidth:1, borderDash:[3,3] } });
+    }
+    // DiD Table — always use static analysis results
+    const tbody = document.getElementById('did-tbody');
+    tbody.innerHTML = '';
+    DATA.did_summary.forEach(r => {
+      const didClass = r.did > 0 && r.label.includes('ST Heat Rate') ? 'val-pos' :
+                       r.did < 0 && r.label.includes('GT') ? 'val-neg' :
+                       Math.abs(r.did) > 20 ? 'val-pos' : '';
+      const status = r.label.includes('ST Heat Rate') && r.did > 0 ? '<span class="kpi-badge bad">Anomaly</span>' :
+                     r.label.includes('GT Heat Rate') && r.did < 0 ? '<span class="kpi-badge good">Improved</span>' :
+                     r.label.includes('Throttle') && r.did < 0 ? '<span class="kpi-badge warn">Restricted</span>' :
+                     r.label.includes('Condenser') ? '<span class="kpi-badge neutral">Normal</span>' :
+                     Math.abs(r.did) > 10 ? '<span class="kpi-badge warn">Monitor</span>' : '<span class="kpi-badge neutral">OK</span>';
+      tbody.innerHTML += `<tr>
+        <td style="font-weight:500;">${r.label}</td>
+        <td style="text-align:right;">${r.b1_delta >= 0 ? '+' : ''}${r.b1_delta}</td>
+        <td style="text-align:right;">${r.b2_delta >= 0 ? '+' : ''}${r.b2_delta}</td>
+        <td style="text-align:right;" class="${didClass}">${r.did >= 0 ? '+' : ''}${r.did}</td>
+        <td>${r.unit}</td>
+        <td>${status}</td>
+      </tr>`;
+    });
+  }
+
+  if (tabId === 'hp') {
+    makeChart('chart-hp-main-press', labels, [ds('B1 HP Main', st.hp_main_steam_press.b1, BLUE), ds('B2 HP Main', st.hp_main_steam_press.b2, RED)], 'MPa');
+    makeChart('chart-hp-main-temp', labels, [ds('B1 HP Main T', st.hp_main_steam_temp.b1, BLUE), ds('B2 HP Main T', st.hp_main_steam_temp.b2, RED)], '°C');
+    makeChart('chart-hp-inlet-press2', labels, [ds('B1 HP Inlet', st.hp_inlet_press.b1, BLUE), ds('B2 HP Inlet', st.hp_inlet_press.b2, RED)], 'MPa');
+    makeChart('chart-hp-throttle2', labels, [ds('B1 ΔP', st.hp_throttle_dp.b1, BLUE), ds('B2 ΔP', st.hp_throttle_dp.b2, RED)], 'MPa');
+    makeChart('chart-hp-inlet-temp2', labels, [ds('B1 Inlet T', st.hp_turbine_inlet_temp.b1, BLUE), ds('B2 Inlet T', st.hp_turbine_inlet_temp.b2, RED)], '°C');
+    makeChart('chart-hp-exhaust-temp', labels, [ds('B1 Exh T', st.hp_turbine_exhaust_temp.b1, BLUE), ds('B2 Exh T', st.hp_turbine_exhaust_temp.b2, RED)], '°C');
+    makeChart('chart-hp-exhaust-press', labels, [ds('B1 Exh P', st.hp_turbine_exhaust_press.b1, BLUE), ds('B2 Exh P', st.hp_turbine_exhaust_press.b2, RED)], 'MPa');
+    makeChart('chart-enthalpy-hp', labels, [ds('B1 Enthalpy', st.enthalpy_hp.b1, BLUE), ds('B2 Enthalpy', st.enthalpy_hp.b2, RED)], 'kJ/kg');
+    makeChart('chart-hp-throttle-loss-pct', labels, [ds('B1 Throttle Loss%', st.hp_throttle_loss_pct.b1, BLUE), ds('B2 Throttle Loss%', st.hp_throttle_loss_pct.b2, RED)], '%');
+    makeChart('chart-hp-inlet-press', labels, [ds('B1 HP Inlet (post-valve)', st.hp_inlet_press.b1, BLUE), ds('B2 HP Inlet (post-valve)', st.hp_inlet_press.b2, RED)], 'MPa');
+    makeChart('chart-hp-expansion-ratio', labels, [ds('B1 HP Expansion Ratio', st.hp_expansion_ratio.b1, BLUE), ds('B2 HP Expansion Ratio', st.hp_expansion_ratio.b2, RED)], 'ratio');
+    // Update KPIs
+    const li = labels.length - 1;
+    document.getElementById('kpi-hp-main-press').textContent = st.hp_main_steam_press.b2[li].toFixed(2);
+    document.getElementById('kpi-hp-inlet-press').textContent = st.hp_inlet_press.b2[li].toFixed(2);
+    document.getElementById('kpi-hp-throttle-dp').textContent = st.hp_throttle_dp.b2[li].toFixed(3);
+    document.getElementById('kpi-hp-inlet-temp').textContent = st.hp_turbine_inlet_temp.b2[li].toFixed(1);
+  }
+
+  if (tabId === 'hrh') {
+    makeChart('chart-hrh-press', labels, [ds('B1 HRH P', st.hrh_steam_press.b1, BLUE), ds('B2 HRH P', st.hrh_steam_press.b2, RED)], 'MPa');
+    makeChart('chart-hrh-temp2', labels, [ds('B1 HRH T', st.hrh_temp.b1, BLUE), ds('B2 HRH T', st.hrh_temp.b2, RED)], '°C');
+    makeChart('chart-hrh-flow', labels, [ds('B1 HRH Flow', st.hrh_steam_flow.b1, BLUE), ds('B2 HRH Flow', st.hrh_steam_flow.b2, RED)], 't/h');
+    makeChart('chart-hrh-enthalpy', labels, [ds('B1 HRH H', st.enthalpy_hrh.b1, BLUE), ds('B2 HRH H', st.enthalpy_hrh.b2, RED)], 'kJ/kg');
+    makeChart('chart-ip-press', labels, [ds('B1 IP P', st.ip_main_press.b1, BLUE), ds('B2 IP P', st.ip_main_press.b2, RED)], 'MPa');
+    makeChart('chart-ip-temp', labels, [ds('B1 IP T', st.ip_steam_temp.b1, BLUE), ds('B2 IP T', st.ip_steam_temp.b2, RED)], '°C');
+    makeChart('chart-hrh-energy', labels, [ds('B1 HRH Energy', st.hrh_energy.b1, BLUE), ds('B2 HRH Energy', st.hrh_energy.b2, RED)], 'GJ/h');
+    makeChart('chart-hp-hrh-energy-b2', labels, [ds('HP Energy B2', st.hp_energy.b2, ORANGE), ds('HRH Energy B2', st.hrh_energy.b2, PURPLE)], 'GJ/h');
+    const li = labels.length - 1;
+    document.getElementById('kpi-hrh-press').textContent = st.hrh_steam_press.b2[li].toFixed(2);
+    document.getElementById('kpi-hrh-temp').textContent = st.hrh_temp.b2[li].toFixed(1);
+    document.getElementById('kpi-hrh-flow').textContent = st.hrh_steam_flow.b2[li].toFixed(1);
+    document.getElementById('kpi-ip-press').textContent = st.ip_main_press.b2[li].toFixed(2);
+  }
+
+  if (tabId === 'lp') {
+    makeChart('chart-lp-main-press', labels, [ds('B1 LP Main P', st.lp_main_steam_press.b1, BLUE), ds('B2 LP Main P', st.lp_main_steam_press.b2, GREEN)], 'MPa');
+    makeChart('chart-lp-main-temp', labels, [ds('B1 LP Main T', st.lp_main_steam_temp.b1, BLUE), ds('B2 LP Main T', st.lp_main_steam_temp.b2, GREEN)], '°C');
+    makeChart('chart-lp-steam-press', labels, [ds('B1 LP ST P', st.lp_steam_press.b1, BLUE), ds('B2 LP ST P', st.lp_steam_press.b2, GREEN)], 'MPa');
+    makeChart('chart-lp-steam-temp', labels, [ds('B1 LP ST T', st.lp_steam_temp.b1, BLUE), ds('B2 LP ST T', st.lp_steam_temp.b2, GREEN)], '°C');
+    makeChart('chart-lp-enthalpy', labels, [ds('B1 LP H', st.enthalpy_lp.b1, BLUE), ds('B2 LP H', st.enthalpy_lp.b2, GREEN)], 'kJ/kg');
+    makeChart('chart-vacuum-lp', labels, [ds('B1 Vacuum', st.condenser_vacuum.b1, BLUE), ds('B2 Vacuum', st.condenser_vacuum.b2, GREEN)], 'kPa');
+    const li = labels.length - 1;
+    document.getElementById('kpi-lp-main-press').textContent = st.lp_main_steam_press.b2[li].toFixed(2);
+    document.getElementById('kpi-lp-main-temp').textContent = st.lp_main_steam_temp.b2[li].toFixed(1);
+    document.getElementById('kpi-lp-steam-press').textContent = st.lp_steam_press.b2[li].toFixed(2);
+    document.getElementById('kpi-vacuum2').textContent = st.condenser_vacuum.b2[li].toFixed(2);
+  }
+
+  if (tabId === 'crh') {
+    makeChart('chart-crh-press', labels, [ds('B1 CRH P', st.crh_steam_press.b1, BLUE), ds('B2 CRH P', st.crh_steam_press.b2, PURPLE)], 'MPa');
+    makeChart('chart-crh-temp', labels, [ds('B1 CRH T', st.crh_steam_temp.b1, BLUE), ds('B2 CRH T', st.crh_steam_temp.b2, PURPLE)], '°C');
+    makeChart('chart-crh-flow', labels, [ds('B1 CRH Flow', st.crh_steam_flow.b1, BLUE), ds('B2 CRH Flow', st.crh_steam_flow.b2, PURPLE)], 't/h');
+    makeChart('chart-crh-enthalpy', labels, [ds('B1 CRH H', st.enthalpy_crh.b1, BLUE), ds('B2 CRH H', st.enthalpy_crh.b2, PURPLE)], 'kJ/kg');
+    const li = labels.length - 1;
+    document.getElementById('kpi-crh-press').textContent = st.crh_steam_press.b2[li].toFixed(2);
+    document.getElementById('kpi-crh-temp').textContent = st.crh_steam_temp.b2[li].toFixed(1);
+    document.getElementById('kpi-crh-flow').textContent = st.crh_steam_flow.b2[li].toFixed(1);
+    document.getElementById('kpi-crh-enthalpy').textContent = st.enthalpy_crh.b2[li].toLocaleString(undefined, {maximumFractionDigits:1});
+  }
+}
+
+// Init: fetch data.json for live overview, fallback to static if unavailable
+fetch('data.json')
+  .then(r => r.json())
+  .then(json => { LIVE = json; })
+  .catch(() => { LIVE = null; })
+  .finally(() => {
+    tabInited['overview'] = true;
+    initTab('overview');
+    setLang('en');
+  });
+</script>
+</body>
+</html>
