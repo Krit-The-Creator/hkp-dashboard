@@ -334,7 +334,7 @@
 
     <div class="nav-section-label" data-th="เครื่องจักร" data-en="EQUIPMENT">เครื่องจักร</div>
 
-    <a class="nav-item" href="gt_prototype.html">
+    <a class="nav-item" href="gt_dashboard.html">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
         <path d="M15.54 8.46a5 5 0 0 1 0 7.07M8.46 8.46a5 5 0 0 0 0 7.07"/>
@@ -354,6 +354,22 @@
         <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
       </svg>
       <span data-th="HRSG" data-en="HRSG">HRSG</span>
+    </a>
+
+    <div class="nav-section-label" style="margin-top:8px;" data-th="การวิเคราะห์" data-en="ANALYSIS">การวิเคราะห์</div>
+
+    <a class="nav-item" href="analysis.html" style="margin-top:2px;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/>
+      </svg>
+      <span data-th="B2 Root Cause" data-en="B2 Root Cause">B2 Root Cause</span>
+    </a>
+
+    <a class="nav-item" href="analysis_results.html" style="margin-top:2px;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      <span data-th="ผล DiD Analysis" data-en="DiD Analysis Results">DiD Analysis Results</span>
     </a>
 
     <div class="nav-section-label" style="margin-top:8px;" data-th="รายงาน" data-en="REPORTS">รายงาน</div>
@@ -1098,10 +1114,11 @@
       // Update footer label
       const srcLbl = document.getElementById('data-source-label');
       if (srcLbl && window._dashData.meta) {
-        const src = window._dashData.meta.source_file || '';
+        const meta = window._dashData.meta;
+        const range = meta.date_range ? (meta.date_range.from + ' → ' + meta.date_range.to) : '';
         srcLbl.textContent = currentLang === 'th'
-          ? 'ข้อมูลจริง' + (src ? ' · ' + src : '')
-          : 'Live Data' + (src ? ' · ' + src : '');
+          ? 'ข้อมูลจริง' + (range ? ' · ' + range : '')
+          : 'Live Data' + (range ? ' · ' + range : '');
       }
     } catch (err) {
       showFallbackMock();
@@ -1111,71 +1128,120 @@
   }
 
   function renderDashboard(d) {
+    // ── Support our data.json structure (kpi.b1/b2) as well as legacy format ──
     const kpi = d.kpi || {};
-    if (kpi.heat_rate)
-      document.getElementById('kpi-heat-rate').textContent =
-        Math.round(kpi.heat_rate.value).toLocaleString();
-    if (kpi.output_mw)
-      document.getElementById('kpi-output').textContent =
-        kpi.output_mw.value.toFixed(1);
-    if (kpi.energy_gwh)
-      document.getElementById('kpi-energy').textContent =
-        kpi.energy_gwh.value.toFixed(1);
-    if (kpi.fuel_mmscfd)
-      document.getElementById('kpi-fuel').textContent =
-        kpi.fuel_mmscfd.value.toFixed(1);
+    const b1 = kpi.b1 || {};
+    const b2 = kpi.b2 || {};
+    const hasNewFormat = !!(b1.hr_plant || b1.gross_mw);
 
-    // Output chart — ดึงจาก st_analysis.gross_mw (B1+B2 รวม) หรือ series
-    const sta = d.st_analysis;
-    if (sta && sta.months && typeof outputChart !== 'undefined') {
-      const labels = sta.months.map(m => {
-        const [y, mo] = m.split('-');
+    if (hasNewFormat) {
+      // ── New data.json format ──────────────────────────────────────────────
+      // Heat Rate: average of B1+B2 CC heat rate (hr_plant)
+      const hrAvgLatest = (b1.hr_plant && b2.hr_plant)
+        ? ((b1.hr_plant + b2.hr_plant) / 2).toFixed(0)
+        : (b1.hr_plant || b2.hr_plant || 0).toFixed(0);
+      document.getElementById('kpi-heat-rate').textContent =
+        Number(hrAvgLatest).toLocaleString();
+
+      // Output: B1+B2 gross MW
+      const totalMW = (b1.gross_mw || 0) + (b2.gross_mw || 0);
+      document.getElementById('kpi-output').textContent = totalMW.toFixed(1);
+
+      // Energy & Fuel: not in this data.json — keep mock values
+      // (shown as static demo data in the mock animation)
+
+      // ── Charts from gt/st monthly data ───────────────────────────────────
+      const monthFmt = m => {
+        const [, mo] = m.split('-');
         const thMonth = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
                          'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
         return thMonth[+mo] || m;
-      });
-      const b1 = sta.gross_mw ? sta.gross_mw.b1 : [];
-      const b2 = sta.gross_mw ? sta.gross_mw.b2 : [];
-      const total = b1.map((v, i) => +(v + (b2[i] || 0)).toFixed(1));
-      outputChart.data.labels = labels;
-      outputChart.data.datasets[0].data = total;
-      if (outputChart.data.datasets[1]) {
-        const plan = new Array(labels.length).fill(
-          d.kpi && d.kpi.output_mw ? +(d.kpi.output_mw.value).toFixed(1) : null
-        );
-        outputChart.data.datasets[1].data = plan;
-      }
-      outputChart.update();
-    } else {
-      const outS = (d.series || {}).output_daily;
-      if (outS && typeof outputChart !== 'undefined') {
-        if (outS.labels) outputChart.data.labels = outS.labels;
-        const vals = outS.values || outS.actual || [];
-        if (vals.length) outputChart.data.datasets[0].data = vals;
+      };
+
+      // Gross MW chart: B1 GT+ST combined from gt.gt_mw
+      const gt = d.gt || {};
+      if (gt.gt_mw && gt.gt_mw.months && typeof outputChart !== 'undefined') {
+        const labels = gt.gt_mw.months.map(monthFmt);
+        const gtB1 = gt.gt_mw.b1 || [];
+        const gtB2 = gt.gt_mw.b2 || [];
+        // Approximate total as GT × 2 blocks (rough proxy; actual gross = GT+ST)
+        const stFactor = b1.gross_mw && b1.gt_mw ? (b1.gross_mw / b1.gt_mw) : 1.5;
+        const total = gtB1.map((v, i) => +((v + gtB2[i]) * stFactor / 2 * 2).toFixed(1));
+        // Simpler: just show B1+B2 GT MW as proxy of plant output
+        const gtTotal = gtB1.map((v, i) => +(v + (gtB2[i] || 0)).toFixed(1));
+        outputChart.data.labels = labels;
+        outputChart.data.datasets[0].data = gtTotal;
+        if (outputChart.data.datasets[1]) {
+          outputChart.data.datasets[1].data = new Array(labels.length).fill(totalMW.toFixed(1));
+        }
         outputChart.update();
       }
-    }
 
-    // Heat rate chart — ดึงจาก st_analysis.heat_rate_compensate (CC Heat Rate)
-    if (sta && sta.months && typeof heatRateChart !== 'undefined') {
-      const labels = sta.months.map(m => {
-        const [y, mo] = m.split('-');
-        const thMonth = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
-                         'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
-        return thMonth[+mo] || m;
-      });
-      const hrB1 = sta.heat_rate_compensate ? sta.heat_rate_compensate.b1 : [];
-      const hrB2 = sta.heat_rate_compensate ? sta.heat_rate_compensate.b2 : [];
-      // ใช้ค่าเฉลี่ย B1+B2
-      const hrAvg = hrB1.map((v, i) => +(((v + (hrB2[i] || v)) / 2)).toFixed(1));
-      heatRateChart.data.labels = labels;
-      heatRateChart.data.datasets[0].data = hrAvg;
-      heatRateChart.update();
+      // CC Heat Rate chart: from st.hr_plant (both blocks)
+      const st = d.st || {};
+      if (st.hr_plant && st.hr_plant.months && typeof heatRateChart !== 'undefined') {
+        const labels = st.hr_plant.months.map(monthFmt);
+        const hrB1 = st.hr_plant.b1 || [];
+        const hrB2 = st.hr_plant.b2 || [];
+        const hrAvg = hrB1.map((v, i) => +(((v + (hrB2[i] || v)) / 2)).toFixed(1));
+        heatRateChart.data.labels = labels;
+        heatRateChart.data.datasets[0].data = hrAvg;
+        heatRateChart.update();
+      } else if (gt.gt_hr && gt.gt_hr.months && typeof heatRateChart !== 'undefined') {
+        // Fallback: use GT heat rate
+        const labels = gt.gt_hr.months.map(monthFmt);
+        const hrB1 = gt.gt_hr.b1 || [];
+        const hrB2 = gt.gt_hr.b2 || [];
+        const hrAvg = hrB1.map((v, i) => +(((v + (hrB2[i] || v)) / 2)).toFixed(1));
+        heatRateChart.data.labels = labels;
+        heatRateChart.data.datasets[0].data = hrAvg;
+        heatRateChart.update();
+      }
+
     } else {
-      const hrS = (d.series || {}).heat_rate_hourly;
-      if (hrS && typeof heatRateChart !== 'undefined') {
-        if (hrS.labels) heatRateChart.data.labels = hrS.labels;
-        if (hrS.values) heatRateChart.data.datasets[0].data = hrS.values;
+      // ── Legacy format ─────────────────────────────────────────────────────
+      if (kpi.heat_rate)
+        document.getElementById('kpi-heat-rate').textContent =
+          Math.round(kpi.heat_rate.value).toLocaleString();
+      if (kpi.output_mw)
+        document.getElementById('kpi-output').textContent =
+          kpi.output_mw.value.toFixed(1);
+      if (kpi.energy_gwh)
+        document.getElementById('kpi-energy').textContent =
+          kpi.energy_gwh.value.toFixed(1);
+      if (kpi.fuel_mmscfd)
+        document.getElementById('kpi-fuel').textContent =
+          kpi.fuel_mmscfd.value.toFixed(1);
+
+      const sta = d.st_analysis;
+      if (sta && sta.months && typeof outputChart !== 'undefined') {
+        const labels = sta.months.map(m => {
+          const [, mo] = m.split('-');
+          const thMonth = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+                           'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+          return thMonth[+mo] || m;
+        });
+        const b1a = sta.gross_mw ? sta.gross_mw.b1 : [];
+        const b2a = sta.gross_mw ? sta.gross_mw.b2 : [];
+        const total = b1a.map((v, i) => +(v + (b2a[i] || 0)).toFixed(1));
+        outputChart.data.labels = labels;
+        outputChart.data.datasets[0].data = total;
+        outputChart.update();
+      }
+
+      if (d.st_analysis && d.st_analysis.months && typeof heatRateChart !== 'undefined') {
+        const sta2 = d.st_analysis;
+        const labels = sta2.months.map(m => {
+          const [, mo] = m.split('-');
+          const thMonth = ['','ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.',
+                           'ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+          return thMonth[+mo] || m;
+        });
+        const hrB1 = sta2.heat_rate_compensate ? sta2.heat_rate_compensate.b1 : [];
+        const hrB2 = sta2.heat_rate_compensate ? sta2.heat_rate_compensate.b2 : [];
+        const hrAvg = hrB1.map((v, i) => +(((v + (hrB2[i] || v)) / 2)).toFixed(1));
+        heatRateChart.data.labels = labels;
+        heatRateChart.data.datasets[0].data = hrAvg;
         heatRateChart.update();
       }
     }
