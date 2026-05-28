@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="th" data-lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DiD Analysis Results — HKP Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#1c2128;
+    --border:#21262d; --border2:#30363d;
+    --text:#e6edf3; --text2:#8b949e; --text3:#484f58;
+    --blue:#58a6ff; --green:#3fb950; --red:#f85149;
+    --yellow:#d29922; --orange:#e3873a; --purple:#a371f7;
+    --accent:#1f6feb;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'Sarabun','Inter',sans-serif; margin:0; overflow-x:hidden; }
+
+  .sidebar { width:220px; min-height:100vh; background:var(--surface); border-right:1px solid var(--border); position:fixed; left:0; top:0; display:flex; flex-direction:column; z-index:100; }
+  .sidebar-logo { padding:20px 18px 16px; border-bottom:1px solid var(--border); }
+  .plant-name { font-size:13px; font-weight:700; color:var(--blue); letter-spacing:1px; text-transform:uppercase; }
+  .sub-name { font-size:11px; color:var(--text2); margin-top:2px; }
+  .nav-section-label { font-size:10px; font-weight:600; color:var(--text3); letter-spacing:1.5px; text-transform:uppercase; padding:16px 18px 6px; }
+  .nav-item { display:flex; align-items:center; gap:10px; padding:9px 18px; margin:1px 8px; border-radius:6px; cursor:pointer; font-size:13.5px; color:var(--text2); transition:all 0.15s; text-decoration:none; }
+  .nav-item:hover { background:var(--border); color:var(--text); }
+  .nav-item.active { background:#1f3a5f; color:var(--blue); font-weight:600; }
+
+  .topbar { margin-left:220px; height:56px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 24px; position:sticky; top:0; z-index:50; }
+  .page-title { font-size:15px; font-weight:600; }
+  .page-subtitle { font-size:12px; color:var(--text2); margin-top:1px; }
+
+  .tab-nav { margin-left:220px; background:var(--surface); border-bottom:1px solid var(--border); padding:0 20px; display:flex; align-items:center; gap:2px; position:sticky; top:56px; z-index:40; }
+  .tab-btn { padding:12px 16px; font-size:13px; font-weight:500; color:var(--text2); background:transparent; border:none; border-bottom:2px solid transparent; cursor:pointer; transition:all 0.15s; white-space:nowrap; display:flex; align-items:center; gap:7px; }
+  .tab-btn:hover { color:var(--text); }
+  .tab-btn.active { color:var(--blue); border-bottom-color:var(--blue); font-weight:600; }
+
+  .main-content { margin-left:220px; padding:16px 20px; min-height:calc(100vh - 112px); }
+  .tab-section { display:none; }
+  .tab-section.active { display:block; }
+
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:18px; }
+  .card-title { font-size:12px; font-weight:600; color:var(--text2); letter-spacing:0.5px; text-transform:uppercase; margin-bottom:12px; }
+
+  .kpi-value { font-size:26px; font-weight:700; line-height:1.1; }
+  .kpi-unit { font-size:12px; color:var(--text2); margin-left:4px; font-weight:400; }
+  .kpi-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:12px; font-size:11px; font-weight:600; }
+  .kpi-badge.bad { background:rgba(248,81,73,0.12); color:var(--red); }
+  .kpi-badge.good { background:rgba(63,185,80,0.12); color:var(--green); }
+  .kpi-badge.warn { background:rgba(210,153,34,0.12); color:var(--yellow); }
+  .kpi-badge.neutral { background:rgba(139,148,158,0.12); color:var(--text2); }
+  .kpi-badge.b2only { background:rgba(227,135,58,0.12); color:var(--orange); }
+
+  .chart-container { position:relative; width:100%; height:260px; }
+  .chart-container-lg { position:relative; width:100%; height:320px; }
+
+  .legend-row { display:flex; gap:14px; font-size:11px; margin-bottom:8px; }
+  .legend-dot { width:12px; height:3px; border-radius:2px; display:inline-block; }
+
+  .lang-toggle { display:flex; align-items:center; background:var(--border); border-radius:20px; padding:3px; gap:2px; }
+  .lang-btn { padding:4px 12px; border-radius:16px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s; color:var(--text2); border:none; background:transparent; }
+  .lang-btn.active { background:var(--blue); color:var(--bg); }
+
+  /* DiD Table */
+  .did-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .did-table th { padding:8px 10px; text-align:left; font-size:10.5px; font-weight:600; color:var(--text3); border-bottom:1px solid var(--border); text-transform:uppercase; white-space:nowrap; }
+  .did-table td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:middle; }
+  .did-table tr:last-child td { border-bottom:none; }
+  .did-table tr:hover td { background:var(--surface2); }
+  .did-table .group-header td { background:var(--surface2); color:var(--text3); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; padding:6px 10px; }
+  .val-pos { color:var(--red); font-weight:600; }
+  .val-neg { color:var(--green); font-weight:600; }
+  .val-b2-bad { color:var(--orange); font-weight:600; }
+  .val-neutral { color:var(--text2); }
+  .num-col { text-align:right; font-variant-numeric:tabular-nums; }
+
+  /* Category legend */
+  .cat-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+
+  /* Summary banner */
+  .summary-banner { border-radius:10px; padding:16px 20px; margin-bottom:16px; border:1px solid; }
+  .summary-banner.finding { background:rgba(248,81,73,0.05); border-color:rgba(248,81,73,0.25); }
+  .summary-banner.positive { background:rgba(63,185,80,0.05); border-color:rgba(63,185,80,0.25); }
+
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-track { background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-logo">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <div style="width:32px;height:32px;background:linear-gradient(135deg,#1f6feb,#58a6ff);border-radius:8px;display:flex;align-items:center;justify-content:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+      </div>
+      <div>
+        <div class="plant-name">HKP Power Plant</div>
+        <div class="sub-name" data-th="ระบบติดตามประสิทธิภาพโรงไฟฟ้า" data-en="Plant Performance Monitoring">Plant Performance Monitoring</div>
+      </div>
+    </div>
+  </div>
+  <nav style="flex:1;padding:8px 0;overflow-y:auto;">
+    <div class="nav-section-label">OVERVIEW</div>
+    <a class="nav-item" href="index.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span data-th="ภาพรวมระบบ" data-en="Overview">Overview</span>
+    </a>
+    <div class="nav-section-label">EQUIPMENT</div>
+    <a class="nav-item" href="gt_dashboard.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+      <span>Gas Turbine</span>
+    </a>
+    <a class="nav-item" href="st_analysis.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      <span>Steam Turbine</span>
+    </a>
+    <a class="nav-item" href="hrsg_analysis.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      <span>HRSG</span>
+    </a>
+    <div class="nav-section-label" style="margin-top:8px;">ANALYSIS</div>
+    <a class="nav-item active" href="analysis_results.html">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <span data-th="ผล DiD Analysis" data-en="DiD Analysis Results">DiD Analysis Results</span>
+    </a>
+    <div class="nav-section-label" style="margin-top:8px;">REPORTS</div>
+    <a class="nav-item" href="#">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <span data-th="รายงานประจำวัน" data-en="Daily Report">Daily Report</span>
+    </a>
+  </nav>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="page-title" data-th="ผลการวิเคราะห์ Difference-in-Differences (DiD)" data-en="Difference-in-Differences (DiD) Analysis Results">Difference-in-Differences (DiD) Analysis Results</div>
+    <div class="page-subtitle" id="topbar-subtitle" data-th="เปรียบเทียบผลก่อน/หลัง Planned Outage B2 เม.ย. 2026" data-en="Pre/Post B2 Planned Outage Apr 2026 — All Parameters">Pre/Post B2 Planned Outage Apr 2026 — All Parameters</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:12px;">
+    <div class="lang-toggle">
+      <button class="lang-btn" onclick="setLang('th')" id="btn-th">TH</button>
+      <button class="lang-btn active" onclick="setLang('en')" id="btn-en">EN</button>
+    </div>
+  </div>
+</div>
+
+<!-- TAB NAVIGATION -->
+<div class="tab-nav">
+  <button class="tab-btn active" data-tab="summary" onclick="switchTab('summary')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    <span data-th="สรุปผล" data-en="Summary">Summary</span>
+  </button>
+  <button class="tab-btn" data-tab="details" onclick="switchTab('details')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+    <span data-th="ตารางข้อมูลทั้งหมด" data-en="Full Data Table">Full Data Table</span>
+  </button>
+  <button class="tab-btn" data-tab="charts" onclick="switchTab('charts')">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span data-th="กราฟเปรียบเทียบ" data-en="Comparison Charts">Comparison Charts</span>
+  </button>
+</div>
+
+<!-- MAIN CONTENT -->
+<div class="main-content">
+
+<!-- ==================== TAB: SUMMARY ==================== -->
+<div id="tab-summary" class="tab-section active">
+
+  <!-- Method explanation -->
+  <div class="summary-banner finding" style="margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <strong style="font-size:13px;" data-th="วิธีการวิเคราะห์ DiD" data-en="About DiD Methodology">About DiD Methodology</strong>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin:0;line-height:1.6;" data-th="DiD = (B2_post − B2_pre) − (B1_post − B1_pre) วิเคราะห์ผลกระทบที่ B2-specific โดยใช้ B1 เป็น Control Group ถ้า DiD > 0 บ่งชี้ว่า B2 ด้อยกว่าหลัง Outage เมื่อเทียบกับ B1 ที่ไม่มี Outage ในช่วงเดียวกัน" data-en="DiD = (B2_post − B2_pre) − (B1_post − B1_pre). Uses B1 as control group to isolate B2-specific changes. Positive DiD on heat rate = B2-specific degradation. Negative DiD on power output = B2 improved less than B1.">
+      DiD = (B2_post − B2_pre) − (B1_post − B1_pre). Uses B1 as control group to isolate B2-specific changes.
+      Positive DiD on heat rate = B2-specific degradation. Negative DiD on power output = B2 improved less than B1.
+    </p>
+  </div>
+
+  <!-- Key KPI Cards -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="DiD: ST Heat Rate" data-en="DiD: ST Heat Rate">DiD: ST Heat Rate</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--red);" id="kpi-sthr-did">+65.4</span>
+        <span class="kpi-unit">kJ/kWh</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge bad" id="kpi-sthr-verdict">B2-specific degradation</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="B2 แย่ลงขณะที่ B1 ดีขึ้น" data-en="B2 degraded while B1 improved">B2 degraded while B1 improved</div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD: GT Exhaust Temp" data-en="DiD: GT Exhaust Temp">DiD: GT Exhaust Temp</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--green);" id="kpi-exhaust-did">−4.6</span>
+        <span class="kpi-unit">°C</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge good" id="kpi-exhaust-verdict">B1 improved more</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="B1 Exhaust ลดลงมากกว่า B2" data-en="B1 exhaust dropped more than B2">B1 exhaust dropped more than B2</div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD: HRSG ΔT" data-en="DiD: HRSG ΔT">DiD: HRSG ΔT</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--green);" id="kpi-hrsgt-did">−6.1</span>
+        <span class="kpi-unit">°C</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge good" id="kpi-hrsgt-verdict">HRSG B1 improved</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="B1 HRSG ΔT ดีขึ้น" data-en="B1 HRSG heat transfer improved">B1 HRSG heat transfer improved</div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD: HP FW Flow" data-en="DiD: HP FW Flow">DiD: HP FW Flow</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--green);" id="kpi-fwflow-did">−5.2</span>
+        <span class="kpi-unit">t/h</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge good" id="kpi-fwflow-verdict">B1 FW flow increased more</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="B1 Flow เพิ่มมากกว่า B2 หลัง Outage" data-en="B1 flow increased more post-outage">B1 flow increased more post-outage</div>
+    </div>
+  </div>
+
+  <!-- Second KPI row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="DiD: Gross Power" data-en="DiD: Gross Power">DiD: Gross Power</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" id="kpi-gross-did">—</span>
+        <span class="kpi-unit">MW</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge neutral" id="kpi-gross-verdict">—</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD: GT MW" data-en="DiD: GT MW">DiD: GT MW</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" id="kpi-gtmw-did">—</span>
+        <span class="kpi-unit">MW</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge neutral" id="kpi-gtmw-verdict">—</span></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD: HP CBD Valve" data-en="DiD: HP CBD Valve">DiD: HP CBD Valve</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--orange);" id="kpi-cbd-did">+5.1</span>
+        <span class="kpi-unit">%</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge b2only">B2-specific change</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="B2 CBD Valve เปิดมากขึ้น — ตรวจสอบ" data-en="B2 CBD valve opened more — investigate">B2 CBD valve opened more — investigate</div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD: Recirculation Pump Valve" data-en="DiD: Recirc Pump Valve">DiD: Recirc Pump Valve</div>
+      <div style="display:flex;align-items:baseline;gap:4px;">
+        <span class="kpi-value" style="color:var(--orange);" id="kpi-recirc-did">+22.8</span>
+        <span class="kpi-unit">%</span>
+      </div>
+      <div style="margin-top:6px;"><span class="kpi-badge b2only">B2-specific change</span></div>
+      <div style="margin-top:8px;font-size:11px;color:var(--text2);" data-th="B2 Recirc Pump เปิดมากขึ้น — ตรวจสอบ" data-en="B2 recirc pump opened significantly — investigate">B2 recirc pump opened significantly — investigate</div>
+    </div>
+  </div>
+
+  <!-- Findings Summary -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="ผลการวิเคราะห์หลัก — B2 Specific Issues" data-en="Key Findings — B2-Specific Issues">Key Findings — B2-Specific Issues</div>
+      <div style="display:flex;flex-direction:column;gap:10px;" id="findings-b2">
+        <!-- Populated by JS -->
+        <div style="color:var(--text3);font-size:12px;">Loading data...</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="ผลการวิเคราะห์หลัก — B1 Improvements" data-en="Key Findings — B1 Improvements Post-Outage">Key Findings — B1 Improvements Post-Outage</div>
+      <div style="display:flex;flex-direction:column;gap:10px;" id="findings-b1">
+        <!-- Populated by JS -->
+        <div style="color:var(--text3);font-size:12px;">Loading data...</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end tab-summary -->
+
+<!-- ==================== TAB: FULL TABLE ==================== -->
+<div id="tab-details" class="tab-section">
+
+  <div style="margin-bottom:12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;">
+    <div style="font-size:12px;color:var(--text2);">
+      <span data-th="ตารางแสดงผล DiD ทุกพารามิเตอร์ (61 รายการ)" data-en="All 61 DiD parameters — pre/post B2 Planned Outage Apr 2026">All 61 DiD parameters — pre/post B2 Planned Outage Apr 2026</span>
+    </div>
+    <div style="display:flex;gap:8px;font-size:11px;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:4px;"><span class="cat-dot" style="background:var(--red);"></span><span data-th="B2 ด้อยลง (DiD > 0)" data-en="B2 degraded (DiD > 0)">B2 degraded (DiD &gt; 0)</span></span>
+      <span style="display:flex;align-items:center;gap:4px;"><span class="cat-dot" style="background:var(--green);"></span><span data-th="B1 ดีขึ้นมากกว่า (DiD < 0)" data-en="B1 improved more (DiD < 0)">B1 improved more (DiD &lt; 0)</span></span>
+      <span style="display:flex;align-items:center;gap:4px;"><span class="cat-dot" style="background:var(--text3);"></span><span data-th="ไม่มีนัยสำคัญ" data-en="Not significant">Not significant</span></span>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="overflow-x:auto;">
+      <table class="did-table">
+        <thead>
+          <tr>
+            <th style="width:32px;">#</th>
+            <th data-th="พารามิเตอร์" data-en="Parameter">Parameter</th>
+            <th class="num-col" data-th="B1 ก่อน" data-en="B1 Pre">B1 Pre</th>
+            <th class="num-col" data-th="B1 หลัง" data-en="B1 Post">B1 Post</th>
+            <th class="num-col" data-th="ΔB1" data-en="ΔB1">ΔB1</th>
+            <th class="num-col" data-th="B2 ก่อน" data-en="B2 Pre">B2 Pre</th>
+            <th class="num-col" data-th="B2 หลัง" data-en="B2 Post">B2 Post</th>
+            <th class="num-col" data-th="ΔB2" data-en="ΔB2">ΔB2</th>
+            <th class="num-col" data-th="DiD" data-en="DiD">DiD</th>
+            <th data-th="สถานะ" data-en="Verdict">Verdict</th>
+          </tr>
+        </thead>
+        <tbody id="did-full-tbody">
+          <tr><td colspan="10" style="text-align:center;color:var(--text3);padding:24px;">Loading data.json...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- end tab-details -->
+
+<!-- ==================== TAB: CHARTS ==================== -->
+<div id="tab-charts" class="tab-section">
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+    <div class="card">
+      <div class="card-title" data-th="ΔB1 vs ΔB2 — Key Performance" data-en="ΔB1 vs ΔB2 — Key Performance Parameters">ΔB1 vs ΔB2 — Key Performance Parameters</div>
+      <p style="font-size:11px;color:var(--text2);margin:0 0 8px;">
+        <span data-th="เปรียบเทียบ % เปลี่ยนแปลงของ B1 และ B2 ในพารามิเตอร์หลัก" data-en="Change in B1 vs B2 for key parameters after outage">Change in B1 vs B2 for key parameters after outage</span>
+      </p>
+      <div class="legend-row">
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> ΔB1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--orange);"></span> ΔB2</span>
+      </div>
+      <div class="chart-container-lg"><canvas id="chart-b1b2-change"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD Values — Key Parameters" data-en="DiD Values — Key Parameters">DiD Values — Key Parameters</div>
+      <p style="font-size:11px;color:var(--text2);margin:0 0 8px;">
+        <span data-th="DiD > 0 = B2-specific degradation, DiD < 0 = B1 improved more" data-en="DiD > 0 = B2-specific issue. DiD < 0 = B1 improved more than B2.">DiD &gt; 0 = B2-specific issue. DiD &lt; 0 = B1 improved more than B2.</span>
+      </p>
+      <div class="legend-row">
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--red);"></span> <span data-th="DiD บวก (B2 แย่กว่า)" data-en="Positive DiD (B2 worse)">Positive DiD (B2 worse)</span></span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--green);"></span> <span data-th="DiD ลบ (B1 ดีกว่า)" data-en="Negative DiD (B1 better)">Negative DiD (B1 better)</span></span>
+      </div>
+      <div class="chart-container-lg"><canvas id="chart-did-bar"></canvas></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+    <div class="card">
+      <div class="card-title" data-th="DiD — HRSG Duct Temperature" data-en="DiD — HRSG Duct Temperatures (Modules 1–6)">DiD — HRSG Duct Temperatures (Modules 1–6)</div>
+      <div class="legend-row">
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> ΔB1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--orange);"></span> ΔB2</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--purple);"></span> DiD</span>
+      </div>
+      <div class="chart-container-lg"><canvas id="chart-duct-temps"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title" data-th="DiD — HP Steam Parameters" data-en="DiD — HP Steam System Parameters">DiD — HP Steam System Parameters</div>
+      <div class="legend-row">
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--blue);"></span> ΔB1</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--orange);"></span> ΔB2</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span class="legend-dot" style="background:var(--purple);"></span> DiD</span>
+      </div>
+      <div class="chart-container-lg"><canvas id="chart-hp-steam"></canvas></div>
+    </div>
+  </div>
+
+</div><!-- end tab-charts -->
+
+</div><!-- end main-content -->
+
+<script>
+// ─── Language ───────────────────────────────────────────────────────────────
+let currentLang = 'en';
+function setLang(lang) {
+  currentLang = lang;
+  document.getElementById('btn-th').classList.toggle('active', lang === 'th');
+  document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+  document.querySelectorAll('[data-th][data-en]').forEach(el => {
+    el.textContent = el.getAttribute('data-' + lang);
+  });
+}
+
+// ─── Tab switching ───────────────────────────────────────────────────────────
+const tabInited = {};
+function switchTab(tabId) {
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tabId).classList.add('active');
+  document.querySelector('[data-tab="' + tabId + '"]').classList.add('active');
+  if (!tabInited[tabId]) { tabInited[tabId] = true; initTab(tabId); }
+}
+
+// ─── Chart defaults ──────────────────────────────────────────────────────────
+Chart.defaults.color = '#8b949e';
+Chart.defaults.font.family = "'Sarabun','Inter',sans-serif";
+Chart.defaults.font.size = 11;
+const BLUE = '#58a6ff', RED = '#f85149', GREEN = '#3fb950', YELLOW = '#d29922', PURPLE = '#a371f7', ORANGE = '#e3873a';
+const GRID = '#21262d', BORDER = '#30363d';
+
+function fmt(v, dec) {
+  if (v == null || isNaN(v)) return '—';
+  dec = dec ?? (Math.abs(v) < 10 ? 3 : Math.abs(v) < 100 ? 2 : 1);
+  return v.toLocaleString(undefined, { maximumFractionDigits: dec, minimumFractionDigits: dec });
+}
+function fmtSigned(v, dec) {
+  if (v == null || isNaN(v)) return '—';
+  const s = fmt(Math.abs(v), dec);
+  return (v >= 0 ? '+' : '−') + s;
+}
+
+// ─── Verdict logic ───────────────────────────────────────────────────────────
+function getVerdict(param, did, b1Chg, b2Chg) {
+  const p = param.toLowerCase();
+  const absDid = Math.abs(did);
+
+  // Heat rate: positive DiD = B2-specific degradation
+  if (p.includes('heat_rate') || p.includes('steam_turbine_heat_rate')) {
+    if (did > 30) return { text: 'B2-specific degradation', cls: 'bad' };
+    if (did > 5)  return { text: 'B2 slightly worse', cls: 'warn' };
+    if (did < -5) return { text: 'B1 improved more', cls: 'good' };
+    return { text: 'Similar', cls: 'neutral' };
+  }
+  // Power output: negative DiD = both improved but B1 more
+  if (p.includes('power') || p.includes(' mw') || p.includes('gross')) {
+    if (did < -1) return { text: 'Both improved', cls: 'good' };
+    if (did > 1)  return { text: 'B2 improved less', cls: 'warn' };
+    return { text: 'Similar', cls: 'neutral' };
+  }
+  // Temperature-based: smaller magnitude diff
+  if (absDid > 5) return { text: did > 0 ? 'B2 higher' : 'B1 higher', cls: did > 0 ? 'warn' : 'neutral' };
+  if (absDid > 2) return { text: did > 0 ? 'Slightly different' : 'Similar', cls: 'neutral' };
+  return { text: 'Normal', cls: 'neutral' };
+}
+
+// ─── Populate summary KPIs dynamically ────────────────────────────────────────
+function populateSummaryKPIs(did) {
+  function findRow(name) { return did.find(r => r['Unnamed: 0'] === name); }
+  function setKpi(elId, verdictId, row, isGoodNeg, dec) {
+    if (!row) return;
+    const el = document.getElementById(elId);
+    const vEl = document.getElementById(verdictId);
+    if (!el) return;
+    const did_val = row.DiD;
+    el.textContent = fmtSigned(did_val, dec ?? 1);
+    el.style.color = isGoodNeg ? (did_val < 0 ? GREEN : RED) : (did_val > 0 ? RED : GREEN);
+    if (vEl) {
+      const isGood = isGoodNeg ? did_val < 0 : did_val > 0;
+      vEl.textContent = isGood ? 'B1 improved more' : 'B2-specific issue';
+      vEl.className = 'kpi-badge ' + (isGood ? 'good' : 'bad');
+    }
+  }
+
+  // Gross Power (negative = both improved, B1 more)
+  const gross = findRow('GROSS POWER (MW)');
+  if (gross) {
+    document.getElementById('kpi-gross-did').textContent = fmtSigned(gross.DiD, 2);
+    document.getElementById('kpi-gross-did').style.color = gross.DiD < 0 ? GREEN : ORANGE;
+    document.getElementById('kpi-gross-verdict').textContent = 'Both improved';
+    document.getElementById('kpi-gross-verdict').className = 'kpi-badge good';
+  }
+  const gtmw = findRow('GT MW');
+  if (gtmw) {
+    document.getElementById('kpi-gtmw-did').textContent = fmtSigned(gtmw.DiD, 2);
+    document.getElementById('kpi-gtmw-did').style.color = gtmw.DiD < 0 ? GREEN : ORANGE;
+    document.getElementById('kpi-gtmw-verdict').textContent = 'Both improved';
+    document.getElementById('kpi-gtmw-verdict').className = 'kpi-badge good';
+  }
+
+  // ST HR
+  const sthr = findRow('Steam_Turbine_Heat_Rate_Calculation');
+  if (sthr) {
+    document.getElementById('kpi-sthr-did').textContent = fmtSigned(sthr.DiD, 1);
+    document.getElementById('kpi-sthr-did').style.color = sthr.DiD > 0 ? RED : GREEN;
+    document.getElementById('kpi-sthr-verdict').textContent = sthr.DiD > 0 ? 'B2-specific degradation' : 'Normal';
+    document.getElementById('kpi-sthr-verdict').className = 'kpi-badge ' + (sthr.DiD > 0 ? 'bad' : 'good');
+  }
+  // Exhaust
+  const exh = findRow('GT EXHAUST GAS AVERAGE TEMPERATURE (EXHAUST)');
+  if (exh) {
+    document.getElementById('kpi-exhaust-did').textContent = fmtSigned(exh.DiD, 1);
+    document.getElementById('kpi-exhaust-did').style.color = exh.DiD < 0 ? GREEN : ORANGE;
+    document.getElementById('kpi-exhaust-verdict').textContent = exh.DiD < 0 ? 'B1 improved more' : 'B2-specific';
+    document.getElementById('kpi-exhaust-verdict').className = 'kpi-badge ' + (exh.DiD < 0 ? 'good' : 'warn');
+  }
+  // HRSG dT
+  const hrsgt = findRow('HRSG_dT');
+  if (hrsgt) {
+    document.getElementById('kpi-hrsgt-did').textContent = fmtSigned(hrsgt.DiD, 1);
+    document.getElementById('kpi-hrsgt-did').style.color = hrsgt.DiD < 0 ? GREEN : ORANGE;
+    document.getElementById('kpi-hrsgt-verdict').textContent = hrsgt.DiD < 0 ? 'HRSG B1 improved' : 'B2-specific';
+    document.getElementById('kpi-hrsgt-verdict').className = 'kpi-badge ' + (hrsgt.DiD < 0 ? 'good' : 'warn');
+  }
+  // HP FW Flow
+  const fwf = findRow('HP FW INLET FLOW -1');
+  if (fwf) {
+    document.getElementById('kpi-fwflow-did').textContent = fmtSigned(fwf.DiD, 1);
+    document.getElementById('kpi-fwflow-did').style.color = fwf.DiD < 0 ? GREEN : ORANGE;
+    document.getElementById('kpi-fwflow-verdict').textContent = fwf.DiD < 0 ? 'B1 FW flow increased more' : 'B2 flow higher';
+    document.getElementById('kpi-fwflow-verdict').className = 'kpi-badge ' + (fwf.DiD < 0 ? 'good' : 'warn');
+  }
+  // CBD Valve
+  const cbd = findRow('HP CBD CONTROL VALVE POS');
+  if (cbd) document.getElementById('kpi-cbd-did').textContent = fmtSigned(cbd.DiD, 1);
+  // Recirc
+  const recirc = findRow('RECIRCULATION PUMP OUTLET CONTROL VALVE POS');
+  if (recirc) document.getElementById('kpi-recirc-did').textContent = fmtSigned(recirc.DiD, 1);
+
+  // Populate findings lists
+  const b2Issues = did
+    .filter(r => r.DiD > 2 || (r['Unnamed: 0'].includes('HEAT_RATE') || r['Unnamed: 0'].includes('Heat_Rate')) && r.DiD > 0)
+    .sort((a,b) => b.DiD - a.DiD)
+    .slice(0, 6);
+  const b1Improvements = did
+    .filter(r => r.B1_chg > 3 && r.B1_chg > r.B2_chg * 1.5)
+    .sort((a,b) => (b.B1_chg - b.B2_chg) - (a.B1_chg - a.B2_chg))
+    .slice(0, 6);
+
+  const b2El = document.getElementById('findings-b2');
+  b2El.innerHTML = b2Issues.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(248,81,73,0.05);border-radius:6px;border-left:3px solid var(--red);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Unnamed: 0']}">${r['Unnamed: 0']}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">
+          ΔB1 = ${fmtSigned(r.B1_chg, 2)} · ΔB2 = ${fmtSigned(r.B2_chg, 2)}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--red);">${fmtSigned(r.DiD, 2)}</div>
+        <div style="font-size:10px;color:var(--text3);">DiD</div>
+      </div>
+    </div>`).join('');
+
+  const b1El = document.getElementById('findings-b1');
+  b1El.innerHTML = b1Improvements.map(r => `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:rgba(63,185,80,0.05);border-radius:6px;border-left:3px solid var(--green);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:12px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${r['Unnamed: 0']}">${r['Unnamed: 0']}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px;">
+          ΔB1 = ${fmtSigned(r.B1_chg, 2)} · ΔB2 = ${fmtSigned(r.B2_chg, 2)}
+        </div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:13px;font-weight:700;color:var(--green);">${fmtSigned(r.B1_chg - r.B2_chg, 2)}</div>
+        <div style="font-size:10px;color:var(--text3);">B1 lead</div>
+      </div>
+    </div>`).join('');
+}
+
+// ─── Full table ───────────────────────────────────────────────────────────────
+const GROUPS = [
+  { label:'Power Output', params:['GROSS POWER (MW)','GT MW','ST MW'] },
+  { label:'GT / Combustion', params:['GT EXHAUST GAS AVERAGE TEMPERATURE (EXHAUST)','GT COMPRESSOR OUTLET AIR TEMPERATURE','GT FUEL GAS FLOW','GT CSO'] },
+  { label:'HRSG Flue Gas', params:['INLET DUCT TEMP','MODULE #1 DUCT TEMP -1','MODULE #2 DUCT TEMP -2','MODULE #3 DUCT TEMP -1','MODULE #4 DUCT TEMP -1','MODULE #5 DUCT TEMP -1','MODULE #6 DUCT TEMP -1','STACK TEMP','HRSG_dT','HRSG FLUE GAS OUTLET O2 CONTENT'] },
+  { label:'HP Steam / HRSG', params:['HP FW INLET FLOW -1','HP FW INLET TEMP','HP ECO OUTLET TEMP -1','HP DRUM PRESSURE','HP DRUM TEMP -1','HP STEAM PRESSURE','HP STEAM TEMP','HP STEAM FLOW (COMPENSATED)','HP MAIN STEAM PRESS','HP TURBINE INLET STEAM PRESS','HP TURBINE EXHAUST STEAM PRESS'] },
+  { label:'HRSG Derived Metrics', params:['Dm_SH','SH_Main','Drum_Main','Throttle_dP','HP_ExpRatio','SH_Rise','ECO_Rise','Drum_per_MW'] },
+  { label:'Valves & Controls', params:['HP CBD CONTROL VALVE POS','IP CBD CONTROL VALVE POS','HP DRUM LEVEL CONTROL VALVE 100% POS','HP DRUM LEVEL CONTROL VALVE 30% POS','HPCV POSITION','RECIRCULATION PUMP OUTLET CONTROL VALVE POS'] },
+  { label:'IP / LP Steam', params:['IP DRUM PRESSURE','IP STEAM PRESSURE -1','IP STEAM TEMP -1','CONDENSER VACUUM PRESS'] },
+  { label:'Feed Water / Pump', params:['BFP_Total','HP/IP FEED WATER PUMP HP DISCHARGE WATER PRESS'] },
+  { label:'Heat Rate', params:['Steam_Turbine_Heat_Rate_Calculation','Heat_Rate_Compensate'] },
+  { label:'Flue Gas Pressure Drop (Modules)', params:['Gas_Mod1_drop','Gas_Mod2_drop','Gas_Mod3_drop','Gas_Mod4_drop','Gas_Mod5_drop','Gas_Mod6_drop'] },
+];
+
+function populateTable(did) {
+  const tbody = document.getElementById('did-full-tbody');
+  const map = {};
+  did.forEach((r,i) => { map[r['Unnamed: 0']] = { ...r, _idx: i+1 }; });
+
+  let html = '';
+  const seen = new Set();
+
+  GROUPS.forEach(g => {
+    html += `<tr class="group-header"><td colspan="10">${g.label}</td></tr>`;
+    g.params.forEach(pname => {
+      const r = map[pname];
+      if (!r) return;
+      seen.add(pname);
+      html += buildRow(r, pname);
+    });
+  });
+
+  // Remaining rows not in any group
+  did.forEach((r,i) => {
+    const p = r['Unnamed: 0'];
+    if (!seen.has(p)) html += buildRow(r, p);
+  });
+
+  tbody.innerHTML = html;
+}
+
+function buildRow(r, pname) {
+  const did = r.DiD;
+  const b1c = r.B1_chg, b2c = r.B2_chg;
+  const absDid = Math.abs(did);
+
+  // Highlight class for DiD cell
+  let didCls = '';
+  if (absDid >= 5) didCls = did > 0 ? 'val-pos' : 'val-neg';
+  else if (absDid >= 1) didCls = did > 0 ? 'val-b2-bad' : 'val-neutral';
+  else didCls = 'val-neutral';
+
+  const verdict = getVerdict(pname, did, b1c, b2c);
+  const badgeHtml = `<span class="kpi-badge ${verdict.cls}" style="font-size:10px;">${verdict.text}</span>`;
+
+  const dec = (v) => Math.abs(v) < 1 ? 3 : Math.abs(v) < 10 ? 2 : 1;
+
+  return `<tr>
+    <td style="color:var(--text3);font-size:10px;">${r._idx}</td>
+    <td style="font-weight:500;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${pname}">${pname}</td>
+    <td class="num-col" style="color:var(--text2);">${fmt(r.B1_pre, dec(r.B1_pre))}</td>
+    <td class="num-col" style="color:var(--text2);">${fmt(r.B1_post, dec(r.B1_post))}</td>
+    <td class="num-col ${b1c >= 0 ? '' : 'val-neg'}">${fmtSigned(b1c, 2)}</td>
+    <td class="num-col" style="color:var(--text2);">${fmt(r.B2_pre, dec(r.B2_pre))}</td>
+    <td class="num-col" style="color:var(--text2);">${fmt(r.B2_post, dec(r.B2_post))}</td>
+    <td class="num-col ${b2c >= 0 ? '' : 'val-neg'}">${fmtSigned(b2c, 2)}</td>
+    <td class="num-col ${didCls}">${fmtSigned(did, 2)}</td>
+    <td>${badgeHtml}</td>
+  </tr>`;
+}
+
+// ─── Charts ───────────────────────────────────────────────────────────────────
+function makeBarChart(canvasId, labels, datasets, yLabel) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  return new Chart(ctx, {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#21262d', borderColor: BORDER, borderWidth: 1,
+          titleColor: '#e6edf3', bodyColor: '#8b949e',
+          callbacks: { label: c => ` ${c.dataset.label}: ${c.parsed.x?.toLocaleString(undefined,{maximumFractionDigits:2})} ${yLabel}` }
+        }
+      },
+      scales: {
+        x: { grid: { color: GRID }, border: { color: BORDER }, ticks: { callback: v => v.toLocaleString() } },
+        y: { grid: { color: 'transparent' }, border: { color: BORDER }, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+function initTab(tabId) {
+  if (!window._DID_DATA) return;
+  const did = window._DID_DATA;
+
+  function findRow(name) { return did.find(r => r['Unnamed: 0'] === name); }
+
+  if (tabId === 'charts') {
+    // Key performance params bar chart
+    const keyParams = [
+      'GROSS POWER (MW)', 'GT MW', 'ST MW',
+      'GT EXHAUST GAS AVERAGE TEMPERATURE (EXHAUST)',
+      'HRSG_dT', 'HP FW INLET FLOW -1', 'Steam_Turbine_Heat_Rate_Calculation',
+      'HP STEAM TEMP', 'HP CBD CONTROL VALVE POS'
+    ];
+    const keyRows = keyParams.map(findRow).filter(Boolean);
+    const labels = keyRows.map(r => r['Unnamed: 0'].replace(/^GT /,'').replace(/ \(.*\)/,'').replace(/_/g,' '));
+
+    makeBarChart('chart-b1b2-change', labels, [
+      { label: 'ΔB1', data: keyRows.map(r => r.B1_chg), backgroundColor: BLUE + '99', borderColor: BLUE, borderWidth: 1 },
+      { label: 'ΔB2', data: keyRows.map(r => r.B2_chg), backgroundColor: ORANGE + '99', borderColor: ORANGE, borderWidth: 1 }
+    ], '');
+
+    // DiD bar chart — color by sign
+    const didColors = keyRows.map(r => r.DiD > 0 ? RED + '99' : GREEN + '99');
+    const didBorderColors = keyRows.map(r => r.DiD > 0 ? RED : GREEN);
+    makeBarChart('chart-did-bar', labels, [
+      { label: 'DiD', data: keyRows.map(r => r.DiD), backgroundColor: didColors, borderColor: didBorderColors, borderWidth: 1 }
+    ], '');
+
+    // Duct temps
+    const ductParams = ['INLET DUCT TEMP','MODULE #1 DUCT TEMP -1','MODULE #2 DUCT TEMP -2','MODULE #3 DUCT TEMP -1','MODULE #4 DUCT TEMP -1','MODULE #5 DUCT TEMP -1','MODULE #6 DUCT TEMP -1','STACK TEMP'];
+    const ductRows = ductParams.map(findRow).filter(Boolean);
+    const ductLabels = ductRows.map(r => r['Unnamed: 0'].replace('MODULE #','Mod ').replace(' DUCT TEMP -1','').replace(' DUCT TEMP -2',''));
+    makeBarChart('chart-duct-temps', ductLabels, [
+      { label: 'ΔB1', data: ductRows.map(r => r.B1_chg), backgroundColor: BLUE + '99', borderColor: BLUE, borderWidth: 1 },
+      { label: 'ΔB2', data: ductRows.map(r => r.B2_chg), backgroundColor: ORANGE + '99', borderColor: ORANGE, borderWidth: 1 },
+      { label: 'DiD', data: ductRows.map(r => r.DiD), backgroundColor: PURPLE + '60', borderColor: PURPLE, borderWidth: 1, type: 'line', borderDash: [4,3], pointRadius: 4 }
+    ], '°C');
+
+    // HP Steam
+    const hpParams = ['HP FW INLET FLOW -1','HP STEAM PRESSURE','HP STEAM TEMP','HP STEAM FLOW (COMPENSATED)','HP MAIN STEAM PRESS','HP DRUM PRESSURE','HP TURBINE INLET STEAM PRESS'];
+    const hpRows = hpParams.map(findRow).filter(Boolean);
+    const hpLabels = hpRows.map(r => r['Unnamed: 0'].replace('HP ','').replace(/ \(.*\)/,'').replace(' -1',''));
+    makeBarChart('chart-hp-steam', hpLabels, [
+      { label: 'ΔB1', data: hpRows.map(r => r.B1_chg), backgroundColor: BLUE + '99', borderColor: BLUE, borderWidth: 1 },
+      { label: 'ΔB2', data: hpRows.map(r => r.B2_chg), backgroundColor: ORANGE + '99', borderColor: ORANGE, borderWidth: 1 },
+      { label: 'DiD', data: hpRows.map(r => r.DiD), backgroundColor: PURPLE + '60', borderColor: PURPLE, borderWidth: 1, type: 'line', borderDash: [4,3], pointRadius: 4 }
+    ], '');
+  }
+}
+
+// ─── Static inline DiD data (fallback for file:// protocol) ─────────────────
+const STATIC_DID = [{"Unnamed: 0":"GROSS POWER (MW)","B1_pre":703.155,"B1_post":711.567,"B1_chg":8.412,"B2_pre":704.57,"B2_post":710.671,"B2_chg":6.101,"DiD":-2.311},{"Unnamed: 0":"GT MW","B1_pre":472.545,"B1_post":478.082,"B1_chg":5.536,"B2_pre":472.787,"B2_post":476.967,"B2_chg":4.18,"DiD":-1.357},{"Unnamed: 0":"ST MW","B1_pre":230.465,"B1_post":233.233,"B1_chg":2.768,"B2_pre":231.521,"B2_post":233.251,"B2_chg":1.73,"DiD":-1.038},{"Unnamed: 0":"GT EXHAUST GAS AVERAGE TEMPERATURE (EXHAUST)","B1_pre":642.753,"B1_post":648.511,"B1_chg":5.758,"B2_pre":644.509,"B2_post":645.666,"B2_chg":1.157,"DiD":-4.601},{"Unnamed: 0":"INLET DUCT TEMP","B1_pre":633.35,"B1_post":639.186,"B1_chg":5.835,"B2_pre":631.721,"B2_post":635.39,"B2_chg":3.669,"DiD":-2.166},{"Unnamed: 0":"MODULE #1 DUCT TEMP -1","B1_pre":493.142,"B1_post":493.936,"B1_chg":0.794,"B2_pre":496.821,"B2_post":497.337,"B2_chg":0.516,"DiD":-0.277},{"Unnamed: 0":"MODULE #2 DUCT TEMP -2","B1_pre":347.756,"B1_post":348.77,"B1_chg":1.013,"B2_pre":345.88,"B2_post":346.39,"B2_chg":0.51,"DiD":-0.504},{"Unnamed: 0":"MODULE #3 DUCT TEMP -1","B1_pre":306.851,"B1_post":307.668,"B1_chg":0.817,"B2_pre":308.362,"B2_post":308.864,"B2_chg":0.502,"DiD":-0.314},{"Unnamed: 0":"MODULE #4 DUCT TEMP -1","B1_pre":241.936,"B1_post":242.469,"B1_chg":0.533,"B2_pre":242.709,"B2_post":243.179,"B2_chg":0.47,"DiD":-0.063},{"Unnamed: 0":"MODULE #5 DUCT TEMP -1","B1_pre":173.5,"B1_post":173.375,"B1_chg":-0.125,"B2_pre":170.791,"B2_post":166.917,"B2_chg":-3.874,"DiD":-3.749},{"Unnamed: 0":"MODULE #6 DUCT TEMP -1","B1_pre":99.704,"B1_post":99.006,"B1_chg":-0.698,"B2_pre":96.601,"B2_post":96.312,"B2_chg":-0.289,"DiD":0.409},{"Unnamed: 0":"STACK TEMP","B1_pre":91.338,"B1_post":90.522,"B1_chg":-0.816,"B2_pre":88.094,"B2_post":88.866,"B2_chg":0.772,"DiD":1.588},{"Unnamed: 0":"HRSG_dT","B1_pre":551.251,"B1_post":557.648,"B1_chg":6.397,"B2_pre":556.361,"B2_post":556.702,"B2_chg":0.34,"DiD":-6.056},{"Unnamed: 0":"HRSG FLUE GAS OUTLET O2 CONTENT","B1_pre":12.769,"B1_post":12.3,"B1_chg":-0.469,"B2_pre":12.202,"B2_post":12.16,"B2_chg":-0.041,"DiD":0.428},{"Unnamed: 0":"HP FW INLET FLOW -1","B1_pre":219.576,"B1_post":225.977,"B1_chg":6.401,"B2_pre":207.546,"B2_post":208.745,"B2_chg":1.199,"DiD":-5.202},{"Unnamed: 0":"HP FW INLET TEMP","B1_pre":168.149,"B1_post":168.202,"B1_chg":0.053,"B2_pre":170.151,"B2_post":169.485,"B2_chg":-0.666,"DiD":-0.719},{"Unnamed: 0":"HP ECO OUTLET TEMP -1","B1_pre":351.437,"B1_post":352.567,"B1_chg":1.131,"B2_pre":350.233,"B2_post":350.68,"B2_chg":0.446,"DiD":-0.684},{"Unnamed: 0":"HP ECON 1 TO ECON 2 TEMP","B1_pre":227.69,"B1_post":227.59,"B1_chg":-0.1,"B2_pre":229.11,"B2_post":229.528,"B2_chg":0.418,"DiD":0.518},{"Unnamed: 0":"HP ECON 3 TO ECON 4 TEMP","B1_pre":248.432,"B1_post":249.168,"B1_chg":0.735,"B2_pre":248.062,"B2_post":248.807,"B2_chg":0.745,"DiD":0.01},{"Unnamed: 0":"HP ECON 6 TO ECON 7 TEMP","B1_pre":317.3,"B1_post":318.277,"B1_chg":0.978,"B2_pre":315.049,"B2_post":315.667,"B2_chg":0.618,"DiD":-0.36},{"Unnamed: 0":"HP ECON 8 TO ECON 9 TEMP","B1_pre":350.242,"B1_post":351.23,"B1_chg":0.988,"B2_pre":347.055,"B2_post":347.745,"B2_chg":0.691,"DiD":-0.297},{"Unnamed: 0":"HP DRUM TEMP -1","B1_pre":349.011,"B1_post":350.588,"B1_chg":1.577,"B2_pre":347.416,"B2_post":348.645,"B2_chg":1.23,"DiD":-0.347},{"Unnamed: 0":"HP DRUM PRESSURE","B1_pre":16.843,"B1_post":17.155,"B1_chg":0.311,"B2_pre":16.79,"B2_post":16.913,"B2_chg":0.123,"DiD":-0.189},{"Unnamed: 0":"HP DRUM LEVEL (COMP)","B1_pre":0.001,"B1_post":-0.055,"B1_chg":-0.055,"B2_pre":0.002,"B2_post":0.13,"B2_chg":0.128,"DiD":0.183},{"Unnamed: 0":"HP STEAM PRESSURE","B1_pre":15.93,"B1_post":16.258,"B1_chg":0.328,"B2_pre":15.847,"B2_post":16.198,"B2_chg":0.351,"DiD":0.023},{"Unnamed: 0":"HP STEAM TEMP","B1_pre":569.875,"B1_post":571.952,"B1_chg":2.077,"B2_pre":570.407,"B2_post":571.029,"B2_chg":0.622,"DiD":-1.455},{"Unnamed: 0":"HP STEAM FLOW (COMPENSATED)","B1_pre":457.132,"B1_post":465.528,"B1_chg":8.395,"B2_pre":456.409,"B2_post":464.885,"B2_chg":8.476,"DiD":0.081},{"Unnamed: 0":"HP MAIN STEAM PRESS","B1_pre":15.399,"B1_post":15.712,"B1_chg":0.313,"B2_pre":15.332,"B2_post":15.587,"B2_chg":0.255,"DiD":-0.058},{"Unnamed: 0":"HP TURBINE INLET STEAM PRESS","B1_pre":15.3,"B1_post":15.611,"B1_chg":0.312,"B2_pre":15.232,"B2_post":15.486,"B2_chg":0.255,"DiD":-0.057},{"Unnamed: 0":"HP TURBINE EXHAUST STEAM PRESS","B1_pre":3.613,"B1_post":3.678,"B1_chg":0.066,"B2_pre":3.624,"B2_post":3.688,"B2_chg":0.064,"DiD":-0.002},{"Unnamed: 0":"Dm_SH","B1_pre":0.897,"B1_post":0.9,"B1_chg":0.003,"B2_pre":0.944,"B2_post":0.809,"B2_chg":-0.135,"DiD":-0.138},{"Unnamed: 0":"SH_Main","B1_pre":0.521,"B1_post":0.543,"B1_chg":0.022,"B2_pre":0.505,"B2_post":0.609,"B2_chg":0.104,"DiD":0.082},{"Unnamed: 0":"Drum_Main","B1_pre":1.418,"B1_post":1.443,"B1_chg":0.025,"B2_pre":1.459,"B2_post":1.417,"B2_chg":-0.042,"DiD":-0.067},{"Unnamed: 0":"Throttle_dP","B1_pre":0.095,"B1_post":0.099,"B1_chg":0.003,"B2_pre":0.097,"B2_post":0.1,"B2_chg":0.003,"DiD":0.0},{"Unnamed: 0":"HP_ExpRatio","B1_pre":4.229,"B1_post":4.245,"B1_chg":0.016,"B2_pre":4.206,"B2_post":4.196,"B2_chg":-0.01,"DiD":-0.026},{"Unnamed: 0":"SH_Rise","B1_pre":222.331,"B1_post":221.355,"B1_chg":-0.976,"B2_pre":223.685,"B2_post":222.535,"B2_chg":-1.15,"DiD":-0.174},{"Unnamed: 0":"ECO_Rise","B1_pre":180.381,"B1_post":182.238,"B1_chg":1.857,"B2_pre":177.275,"B2_post":178.994,"B2_chg":1.719,"DiD":-0.138},{"Unnamed: 0":"Drum_per_MW","B1_pre":16.692,"B1_post":16.912,"B1_chg":0.221,"B2_pre":16.652,"B2_post":16.69,"B2_chg":0.037,"DiD":-0.183},{"Unnamed: 0":"HP CBD CONTROL VALVE POS","B1_pre":-0.04,"B1_post":-0.048,"B1_chg":-0.008,"B2_pre":4.948,"B2_post":9.992,"B2_chg":5.044,"DiD":5.052},{"Unnamed: 0":"IP CBD CONTROL VALVE POS","B1_pre":4.819,"B1_post":-0.047,"B1_chg":-4.866,"B2_pre":4.807,"B2_post":4.844,"B2_chg":0.038,"DiD":4.903},{"Unnamed: 0":"IP DRUM PRESSURE","B1_pre":3.627,"B1_post":3.69,"B1_chg":0.063,"B2_pre":3.644,"B2_post":3.685,"B2_chg":0.041,"DiD":-0.022},{"Unnamed: 0":"IP STEAM PRESSURE -1","B1_pre":3.6,"B1_post":3.663,"B1_chg":0.063,"B2_pre":3.599,"B2_post":3.67,"B2_chg":0.071,"DiD":0.007},{"Unnamed: 0":"IP STEAM TEMP -1","B1_pre":340.863,"B1_post":341.94,"B1_chg":1.077,"B2_pre":338.67,"B2_post":338.809,"B2_chg":0.138,"DiD":-0.939},{"Unnamed: 0":"HP DRUM LEVEL CONTROL VALVE 100% POS","B1_pre":40.573,"B1_post":42.17,"B1_chg":1.597,"B2_pre":40.293,"B2_post":41.184,"B2_chg":0.891,"DiD":-0.706},{"Unnamed: 0":"HP DRUM LEVEL CONTROL VALVE 30% POS","B1_pre":-0.06,"B1_post":-0.067,"B1_chg":-0.007,"B2_pre":-0.031,"B2_post":-0.022,"B2_chg":0.009,"DiD":0.017},{"Unnamed: 0":"BFP_Total","B1_pre":259.722,"B1_post":265.995,"B1_chg":6.274,"B2_pre":254.043,"B2_post":260.567,"B2_chg":6.524,"DiD":0.251},{"Unnamed: 0":"HP/IP FEED WATER PUMP HP DISCHARGE WATER PRESS","B1_pre":22.159,"B1_post":22.016,"B1_chg":-0.144,"B2_pre":22.084,"B2_post":21.998,"B2_chg":-0.087,"DiD":0.057},{"Unnamed: 0":"GT COMPRESSOR OUTLET AIR TEMPERATURE","B1_pre":497.574,"B1_post":501.652,"B1_chg":4.077,"B2_pre":498.893,"B2_post":500.455,"B2_chg":1.562,"DiD":-2.515},{"Unnamed: 0":"GT FUEL GAS FLOW","B1_pre":85.806,"B1_post":86.305,"B1_chg":0.5,"B2_pre":86.346,"B2_post":86.071,"B2_chg":-0.275,"DiD":-0.775},{"Unnamed: 0":"GT CSO","B1_pre":78.26,"B1_post":78.846,"B1_chg":0.586,"B2_pre":78.78,"B2_post":79.397,"B2_chg":0.618,"DiD":0.032},{"Unnamed: 0":"CONDENSER VACUUM PRESS","B1_pre":7.234,"B1_post":7.834,"B1_chg":0.6,"B2_pre":7.369,"B2_post":7.974,"B2_chg":0.604,"DiD":0.004},{"Unnamed: 0":"HPCV POSITION","B1_pre":100.058,"B1_post":100.099,"B1_chg":0.041,"B2_pre":100.432,"B2_post":100.427,"B2_chg":-0.006,"DiD":-0.047},{"Unnamed: 0":"Steam_Turbine_Heat_Rate_Calculation","B1_pre":9157.641,"B1_post":9170.672,"B1_chg":13.031,"B2_pre":9106.085,"B2_post":9184.506,"B2_chg":78.421,"DiD":65.39},{"Unnamed: 0":"Heat_Rate_Compensate","B1_pre":6164.301,"B1_post":6144.438,"B1_chg":-19.863,"B2_pre":6187.083,"B2_post":6167.617,"B2_chg":-19.466,"DiD":0.397},{"Unnamed: 0":"Gas_Mod1_drop","B1_pre":139.883,"B1_post":145.105,"B1_chg":5.221,"B2_pre":135.029,"B2_post":138.991,"B2_chg":3.962,"DiD":-1.259},{"Unnamed: 0":"Gas_Mod2_drop","B1_pre":145.341,"B1_post":145.258,"B1_chg":-0.082,"B2_pre":150.845,"B2_post":150.758,"B2_chg":-0.087,"DiD":-0.005},{"Unnamed: 0":"Gas_Mod3_drop","B1_pre":40.56,"B1_post":41.005,"B1_chg":0.446,"B2_pre":37.371,"B2_post":37.654,"B2_chg":0.283,"DiD":-0.163},{"Unnamed: 0":"Gas_Mod4_drop","B1_pre":64.775,"B1_post":65.122,"B1_chg":0.347,"B2_pre":65.886,"B2_post":66.043,"B2_chg":0.158,"DiD":-0.189},{"Unnamed: 0":"Gas_Mod5_drop","B1_pre":68.494,"B1_post":69.123,"B1_chg":0.629,"B2_pre":71.902,"B2_post":74.309,"B2_chg":2.407,"DiD":1.778},{"Unnamed: 0":"Gas_Mod6_drop","B1_pre":73.942,"B1_post":74.166,"B1_chg":0.223,"B2_pre":73.772,"B2_post":70.713,"B2_chg":-3.058,"DiD":-3.282},{"Unnamed: 0":"RECIRCULATION PUMP OUTLET CONTROL VALVE POS","B1_pre":-0.058,"B1_post":-0.066,"B1_chg":-0.007,"B2_pre":-0.036,"B2_post":22.803,"B2_chg":22.838,"DiD":22.846}];
+const STATIC_META = {"generated_at":"2026-05-27T21:50:09.030851","date_range":{"from":"2025-01-01","to":"2026-05-26"}};
+
+// ─── Bootstrap function (shared by fetch success + static fallback) ──────────
+function bootstrapData(json) {
+  const didData = json.did || STATIC_DID;
+  window._DID_DATA = didData;
+  populateSummaryKPIs(didData);
+  populateTable(didData);
+  const meta = json.meta || STATIC_META;
+  if (meta && meta.date_range) {
+    document.getElementById('topbar-subtitle').textContent =
+      'Data: ' + meta.date_range.from + ' → ' + meta.date_range.to +
+      '  ·  Updated: ' + new Date(meta.generated_at).toLocaleDateString('en-GB');
+  }
+}
+
+// ─── Fetch data.json (with inline-data fallback for file:// protocol) ─────────
+fetch('data.json')
+  .then(r => r.json())
+  .then(json => bootstrapData(json))
+  .catch(() => {
+    console.info('data.json not reachable — using inline static data');
+    bootstrapData({ did: STATIC_DID, meta: STATIC_META });
+  });
+
+setLang('en');
+</script>
+</body>
+</html>
