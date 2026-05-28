@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B2 Heat Rate Root Cause Analysis — HKP Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+  :root {
+    --bg:#0d1117; --surface:#161b22; --surface2:#1c2128;
+    --border:#30363d; --text:#e6edf3; --text2:#8b949e;
+    --green:#3fb950; --yellow:#d29922; --red:#f85149;
+    --blue:#58a6ff; --orange:#e3873a; --accent:#1f6feb;
+    --purple:#a78bfa;
+  }
+  body { background:var(--bg); color:var(--text); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+
+  /* Topbar */
+  .topbar { background:var(--surface); border-bottom:1px solid var(--border); padding:10px 24px; display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:50; }
+  .back-btn { display:flex; align-items:center; gap:6px; color:var(--text2); text-decoration:none; background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:5px 12px; font-size:12px; transition:all .15s; flex-shrink:0; }
+  .back-btn:hover { color:var(--text); border-color:var(--blue); }
+  .topbar-title { font-size:15px; font-weight:600; }
+  .topbar-sub { font-size:12px; color:var(--text2); }
+  .alert-badge { margin-left:auto; display:flex; align-items:center; gap:8px; background:rgba(248,81,73,.12); border:1px solid rgba(248,81,73,.3); border-radius:20px; padding:4px 14px; font-size:12px; font-weight:600; color:var(--red); }
+  .dot-red { width:7px; height:7px; border-radius:50%; background:var(--red); box-shadow:0 0 5px var(--red); animation:blink 1.5s ease infinite; }
+  @keyframes blink { 0%,100%{opacity:1}50%{opacity:.3} }
+
+  /* Main */
+  .main { padding:18px 24px; max-width:1300px; margin:0 auto; display:flex; flex-direction:column; gap:16px; }
+
+  /* Headline card */
+  .headline { background:var(--surface); border:1px solid rgba(248,81,73,.35); border-radius:10px; padding:18px 22px; display:grid; grid-template-columns:1fr auto; gap:16px; align-items:center; }
+  .hl-label { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.8px; color:var(--red); margin-bottom:6px; }
+  .hl-title { font-size:17px; font-weight:700; margin-bottom:8px; }
+  .hl-desc { font-size:13px; color:var(--text2); line-height:1.6; }
+  .hl-meta { font-size:11px; color:var(--text2); margin-top:8px; }
+  .hl-meta span { color:var(--text); font-weight:600; }
+  .hl-kpi-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; min-width:220px; }
+  .hl-kpi { background:var(--surface2); border:1px solid var(--border); border-radius:8px; padding:10px 14px; text-align:center; }
+  .hl-kpi-label { font-size:10px; color:var(--text2); margin-bottom:4px; }
+  .hl-kpi-val { font-size:18px; font-weight:700; }
+  .hl-kpi-sub { font-size:10px; color:var(--text2); margin-top:2px; }
+
+  /* Period banner */
+  .period-bar { display:flex; gap:8px; }
+  .period-pill { flex:1; border-radius:8px; padding:10px 14px; border:1px solid var(--border); text-align:center; }
+  .period-pill .pp-label { font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+  .period-pill .pp-date { font-size:11px; color:var(--text2); }
+  .pp-pre  { border-color:rgba(88,166,255,.3); background:rgba(88,166,255,.06); }
+  .pp-pre .pp-label { color:var(--blue); }
+  .pp-out  { border-color:rgba(248,81,73,.3); background:rgba(248,81,73,.06); }
+  .pp-out .pp-label { color:var(--red); }
+  .pp-post { border-color:rgba(210,153,34,.3); background:rgba(210,153,34,.06); }
+  .pp-post .pp-label { color:var(--yellow); }
+
+  /* Card */
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:16px; }
+  .card-title { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text2); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .card-title .tag { font-size:10px; font-weight:600; border-radius:4px; padding:2px 8px; }
+  .tag-red    { background:rgba(248,81,73,.15);   color:var(--red);    border:1px solid rgba(248,81,73,.3); }
+  .tag-yellow { background:rgba(210,153,34,.15);  color:var(--yellow); border:1px solid rgba(210,153,34,.3); }
+  .tag-green  { background:rgba(63,185,80,.15);   color:var(--green);  border:1px solid rgba(63,185,80,.3); }
+  .tag-blue   { background:rgba(88,166,255,.15);  color:var(--blue);   border:1px solid rgba(88,166,255,.3); }
+
+  /* 2-col layout */
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .row3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; }
+
+  /* Chart containers */
+  .chart-wrap { position:relative; height:220px; }
+  .chart-wrap-lg { position:relative; height:260px; }
+
+  /* Before/After compare table */
+  .compare-table { width:100%; border-collapse:collapse; font-size:12px; }
+  .compare-table th { padding:7px 10px; text-align:left; color:var(--text2); font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--border); }
+  .compare-table td { padding:8px 10px; border-bottom:1px solid #21262d; }
+  .compare-table tr:hover td { background:rgba(255,255,255,.03); }
+  .compare-table tr:last-child td { border-bottom:none; }
+  .val-up   { color:var(--red);    font-weight:600; }
+  .val-down { color:var(--green);  font-weight:600; }
+  .val-neu  { color:var(--text2);  font-weight:400; }
+  .sig      { font-size:10px; color:var(--yellow); font-weight:600; }
+  .metric-name { color:var(--text); }
+  .metric-cat { font-size:10px; color:var(--text2); display:block; }
+
+  /* Waterfall legend */
+  .decomp-items { display:flex; flex-direction:column; gap:8px; }
+  .decomp-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:6px; background:var(--surface2); border:1px solid var(--border); }
+  .decomp-dot { width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+  .decomp-label { flex:1; font-size:12px; }
+  .decomp-val { font-size:14px; font-weight:700; }
+  .decomp-pct { font-size:11px; color:var(--text2); }
+
+  /* Recommendations */
+  .rec-list { display:flex; flex-direction:column; gap:8px; }
+  .rec-item { display:flex; gap:12px; padding:10px 14px; border-radius:8px; border-left:3px solid; }
+  .rec-high   { background:rgba(248,81,73,.07);   border-color:var(--red);    }
+  .rec-medium { background:rgba(210,153,34,.07);  border-color:var(--yellow); }
+  .rec-next   { background:rgba(88,166,255,.07);  border-color:var(--blue);   }
+  .rec-no     { background:rgba(139,148,158,.05); border-color:var(--border); }
+  .rec-num { font-size:13px; font-weight:700; flex-shrink:0; width:20px; }
+  .rec-body { flex:1; }
+  .rec-title { font-size:12px; font-weight:600; margin-bottom:3px; }
+  .rec-detail { font-size:11px; color:var(--text2); line-height:1.5; }
+  .rec-badge { font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; padding:2px 7px; border-radius:4px; margin-bottom:6px; display:inline-block; }
+  .badge-high   { background:rgba(248,81,73,.2);   color:var(--red);    }
+  .badge-medium { background:rgba(210,153,34,.2);  color:var(--yellow); }
+  .badge-next   { background:rgba(88,166,255,.2);  color:var(--blue);   }
+  .badge-no     { background:rgba(139,148,158,.15);color:var(--text2);  }
+
+  /* Smoking gun highlight */
+  .smoking-gun { background:linear-gradient(135deg, rgba(248,81,73,.08), rgba(248,81,73,.03)); border:1px solid rgba(248,81,73,.3); border-radius:8px; padding:12px 16px; margin-bottom:12px; }
+  .sg-title { font-size:12px; font-weight:700; color:var(--red); display:flex; align-items:center; gap:6px; margin-bottom:6px; }
+  .sg-body  { font-size:12px; color:var(--text2); line-height:1.6; }
+  .sg-val   { color:var(--red); font-weight:700; }
+  .sg-ok    { color:var(--green); font-weight:700; }
+
+  /* Footer */
+  .footer { font-size:11px; color:var(--text2); text-align:center; padding:16px; border-top:1px solid var(--border); margin-top:8px; }
+</style>
+</head>
+<body>
+
+<!-- ── TOPBAR ── -->
+<div class="topbar">
+  <a href="index.html" class="back-btn">← หน้าหลัก</a>
+  <div>
+    <div class="topbar-title">B2 Heat Rate — Root Cause Analysis</div>
+    <div class="topbar-sub">Block 2 Steam Turbine Heat Rate Degradation · Post April 2026 Outage</div>
+  </div>
+  <div class="alert-badge">
+    <div class="dot-red"></div>
+    ACTION REQUIRED
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ── HEADLINE ── -->
+  <div class="headline">
+    <div>
+      <div class="hl-label">🔴 Confirmed Root Cause</div>
+      <div class="hl-title">B2 Steam Turbine Heat Rate เสื่อมลง +65.7 kJ/kWh หลัง Outage เม.ย. 2569</div>
+      <div class="hl-desc">
+        สาเหตุหลัก: <strong style="color:var(--red)">HP Main Steam Line Restriction</strong> ระหว่าง HRSG outlet → HP Turbine Inlet
+        ทำให้เกิด Pressure Drop เพิ่มขึ้น +77 kPa เฉพาะ B2 (B2-specific)<br>
+        Gas Turbine และ HRSG ปกติดี — ไม่ใช่ปัญหาฝั่ง GT
+      </div>
+      <div class="hl-meta">
+        ข้อมูล: <span>PI Historian · 47,041 records (15 นาที)</span> ·
+        Filter: <span>GROSS POWER > 400 MW</span> ·
+        วิเคราะห์: <span>07 พ.ค. 2569</span>
+      </div>
+    </div>
+    <div class="hl-kpi-grid">
+      <div class="hl-kpi">
+        <div class="hl-kpi-label">ST HR Degradation (B2-specific)</div>
+        <div class="hl-kpi-val" style="color:var(--red)">+65.7</div>
+        <div class="hl-kpi-sub">kJ/kWh</div>
+      </div>
+      <div class="hl-kpi">
+        <div class="hl-kpi-label">HP ΔP เพิ่มขึ้น B2-specific</div>
+        <div class="hl-kpi-val" style="color:var(--red)">+77</div>
+        <div class="hl-kpi-sub">kPa (Smoking Gun)</div>
+      </div>
+      <div class="hl-kpi">
+        <div class="hl-kpi-label">GT Health (B2)</div>
+        <div class="hl-kpi-val" style="color:var(--green)">✓ ดีขึ้น</div>
+        <div class="hl-kpi-sub">GT HR −30.6 kJ/kWh</div>
+      </div>
+      <div class="hl-kpi">
+        <div class="hl-kpi-label">HRSG Health (B2)</div>
+        <div class="hl-kpi-val" style="color:var(--green)">✓ ปกติ</div>
+        <div class="hl-kpi-sub">Outlet match B1</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ANALYSIS PERIODS ── -->
+  <div class="period-bar">
+    <div class="period-pill pp-pre">
+      <div class="pp-label">Pre-Outage</div>
+      <div class="pp-date">ม.ค. – มี.ค. 2569 (3 เดือน stable)</div>
+    </div>
+    <div class="period-pill pp-out">
+      <div class="pp-label">B2 Outage</div>
+      <div class="pp-date">1 – 21 เม.ย. 2569</div>
+    </div>
+    <div class="period-pill pp-post">
+      <div class="pp-label">Post-Outage</div>
+      <div class="pp-date">22 เม.ย. – 6 พ.ค. 2569</div>
+    </div>
+  </div>
+
+  <!-- ── ROW: ST HR TREND + DECOMPOSITION ── -->
+  <div class="row2">
+
+    <!-- ST Heat Rate Monthly Trend -->
+    <div class="card">
+      <div class="card-title">
+        📈 ST Heat Rate รายเดือน (B1 vs B2)
+        <span class="tag tag-red">B2 เสื่อมหลัง เม.ย.</span>
+      </div>
+      <div class="chart-wrap-lg"><canvas id="stHRChart"></canvas></div>
+    </div>
+
+    <!-- Heat Rate Decomposition -->
+    <div class="card">
+      <div class="card-title">
+        📊 Heat Rate Decomposition (B2-specific +65.7 kJ/kWh)
+        <span class="tag tag-yellow">Waterfall</span>
+      </div>
+      <div class="chart-wrap" style="height:160px;margin-bottom:12px;">
+        <canvas id="waterfallChart"></canvas>
+      </div>
+      <div class="decomp-items">
+        <div class="decomp-item">
+          <div class="decomp-dot" style="background:var(--red)"></div>
+          <div class="decomp-label">Primary — HP Main Steam Restriction</div>
+          <div>
+            <div class="decomp-val" style="color:var(--red)">+43.3 kJ/kWh</div>
+            <div class="decomp-pct">66% of total</div>
+          </div>
+        </div>
+        <div class="decomp-item">
+          <div class="decomp-dot" style="background:var(--yellow)"></div>
+          <div class="decomp-label">Secondary — FGH/CPH Heat Balance Shift</div>
+          <div>
+            <div class="decomp-val" style="color:var(--yellow)">+17.7 kJ/kWh</div>
+            <div class="decomp-pct">27% of total</div>
+          </div>
+        </div>
+        <div class="decomp-item">
+          <div class="decomp-dot" style="background:var(--text2)"></div>
+          <div class="decomp-label">Minor / Measurement / Closure</div>
+          <div>
+            <div class="decomp-val" style="color:var(--text2)">+4.7 kJ/kWh</div>
+            <div class="decomp-pct">7% of total</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── ROW: HP ΔP SMOKING GUN + CC HR TREND ── -->
+  <div class="row2">
+
+    <!-- HP ΔP — Smoking Gun -->
+    <div class="card">
+      <div class="card-title">
+        🔍 HP Main Steam ΔP — Smoking Gun
+        <span class="tag tag-red">B2-specific step change</span>
+      </div>
+      <div class="smoking-gun">
+        <div class="sg-title">🚨 B2 Post-Outage: ΔP = <span class="sg-val">706 kPa</span> (+113 kPa จาก Pre) vs B1 เพียง +36 kPa</div>
+        <div class="sg-body">
+          Loss coefficient <strong style="color:var(--text)">k = ΔP/ṁ²</strong> เพิ่มขึ้น <span class="sg-val">+31.8 (B2-specific)</span> →
+          มี Restriction ใหม่เกิดขึ้นในท่อ HP main steam ระหว่าง Outage<br>
+          Entropy generation เพิ่มขึ้น <span class="sg-val">+0.0017 kJ/kg·K</span> — ยืนยัน Adiabatic Throttling
+        </div>
+      </div>
+      <div class="chart-wrap"><canvas id="dpChart"></canvas></div>
+    </div>
+
+    <!-- CC Heat Rate Trend -->
+    <div class="card">
+      <div class="card-title">
+        📉 CC Heat Rate Compensate รายเดือน
+        <span class="tag tag-blue">Normalized</span>
+      </div>
+      <div class="chart-wrap-lg"><canvas id="ccHRChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── BEFORE/AFTER KEY METRICS ── -->
+  <div class="card">
+    <div class="card-title">
+      📋 Key Metrics Pre vs Post Outage — Difference in Differences (DiD)
+      <span class="tag tag-yellow">B2-specific delta only</span>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="compare-table">
+        <thead>
+          <tr>
+            <th style="width:220px;">Metric</th>
+            <th>Unit</th>
+            <th style="text-align:right;">B1 Pre</th>
+            <th style="text-align:right;">B1 Post</th>
+            <th style="text-align:right;">B1 Δ</th>
+            <th style="text-align:right;">B2 Pre</th>
+            <th style="text-align:right;">B2 Post</th>
+            <th style="text-align:right;">B2 Δ</th>
+            <th style="text-align:right;">B2-Spec Δ (DiD)</th>
+            <th>สถานะ</th>
+          </tr>
+        </thead>
+        <tbody id="compare-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── RECOMMENDATIONS ── -->
+  <div class="card">
+    <div class="card-title">✅ Recommendations (ลำดับความสำคัญ)</div>
+    <div class="rec-list">
+      <div class="rec-item rec-high">
+        <div class="rec-num" style="color:var(--red)">1</div>
+        <div class="rec-body">
+          <div class="rec-badge badge-high">🔴 HIGH — ทำได้ Online</div>
+          <div class="rec-title">Stroke-test HP main steam stop valve</div>
+          <div class="rec-detail">ตรวจสอบ position feedback vs actuator stroke — ถ้า valve ไม่เปิดเต็มคือแหล่งของ restriction</div>
+        </div>
+      </div>
+      <div class="rec-item rec-high">
+        <div class="rec-num" style="color:var(--red)">2</div>
+        <div class="rec-body">
+          <div class="rec-badge badge-high">🔴 HIGH — ทำได้ Online</div>
+          <div class="rec-title">Inspect HP TBV seat integrity and travel range</div>
+          <div class="rec-detail">Review acceptance test จาก Outage — ตรวจสอบว่า TBV ไม่มี debris หรือ seat damage</div>
+        </div>
+      </div>
+      <div class="rec-item rec-high">
+        <div class="rec-num" style="color:var(--red)">3</div>
+        <div class="rec-body">
+          <div class="rec-badge badge-high">🔴 HIGH — ทำได้ Online</div>
+          <div class="rec-title">Inspect HP main steam piping สำหรับ installed restriction</div>
+          <div class="rec-detail">ตรวจหา orifice, blocked strainer, หรือ foreign object ที่ติดตั้งผิดพลาดระหว่าง Outage</div>
+        </div>
+      </div>
+      <div class="rec-item rec-high">
+        <div class="rec-num" style="color:var(--red)">4</div>
+        <div class="rec-body">
+          <div class="rec-badge badge-high">🔴 HIGH — Monitor</div>
+          <div class="rec-title">Trend HP Main Steam ΔP vs HP Flow ที่ resolution 1 นาที</div>
+          <div class="rec-detail">ยืนยัน loss coefficient k คงที่ — ถ้า k เปลี่ยนตาม load แสดงว่าอาจเป็น partial valve closure</div>
+        </div>
+      </div>
+      <div class="rec-item rec-medium">
+        <div class="rec-num" style="color:var(--yellow)">5</div>
+        <div class="rec-body">
+          <div class="rec-badge badge-medium">🟡 MEDIUM</div>
+          <div class="rec-title">Quantify FGH bypass / 3rd stage operation</div>
+          <div class="rec-detail">พิจารณา re-tuning FGH FW flow split เพื่อลด FGH/CPH heat balance shift effect (~17.7 kJ/kWh)</div>
+        </div>
+      </div>
+      <div class="rec-item rec-medium">
+        <div class="rec-num" style="color:var(--yellow)">6</div>
+        <div class="rec-body">
+          <div class="rec-badge badge-medium">🟡 MEDIUM</div>
+          <div class="rec-title">Document FG Compressor decommission expected HR penalty</div>
+          <div class="rec-detail">อัปเดต performance baseline ให้รวม FGC decommission penalty เพื่อ comparison ที่ถูกต้อง</div>
+        </div>
+      </div>
+      <div class="rec-item rec-next">
+        <div class="rec-num" style="color:var(--blue)">7</div>
+        <div class="rec-body">
+          <div class="rec-badge badge-next">🔵 NEXT OUTAGE</div>
+          <div class="rec-title">Internal inspection of HP main steam path</div>
+          <div class="rec-detail">วางแผน inspect: stop valve, control valves, piping ด้านใน — ยืนยัน root cause ด้วยสายตา</div>
+        </div>
+      </div>
+      <div class="rec-item rec-no">
+        <div class="rec-num" style="color:var(--text2)">✕</div>
+        <div class="rec-body">
+          <div class="rec-badge badge-no">❌ อย่าทำ</div>
+          <div class="rec-title">ห้าม tune GT, blame condenser, หรือ blame HRSG</div>
+          <div class="rec-detail">GT ดีขึ้น · Condenser cleanliness factor ดีขึ้น (+18%) · HRSG outlet match B1 ทุก parameter</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div class="footer">
+  HKP EGAT Operation Section · B2 Heat Rate Root Cause Analysis · Data: PI Historian 47,041 records · Analyzed: 07 พ.ค. 2569
+</div>
+
+<script>
+// ── Monthly data from CSV ──────────────────────────────────────────────────
+const months = ['ส.ค. 68','ก.ย. 68','ต.ค. 68','พ.ย. 68','ธ.ค. 68',
+                'ม.ค. 69','ก.พ. 69','มี.ค. 69','เม.ย. 69','พ.ค. 69'];
+
+const stHR_B1 = [9213.0, 9224.8, 9213.2, 9198.9, 9165.8, 9160.2, 9148.5, 9157.6, 9167.5, 9173.9];
+const stHR_B2 = [9128.8, 9145.2, 9152.6, 9164.3, 9114.5, 9111.2, 9094.1, 9106.1, 9183.9, 9185.1];
+const ccHR_B1 = [6188.7, 6201.6, 6200.5, 6209.4, 6170.1, 6167.9, 6163.0, 6164.3, 6144.0, 6144.8];
+const ccHR_B2 = [6198.5, 6209.4, 6207.5, 6213.5, 6202.0, 6195.8, 6184.8, 6187.1, 6171.8, 6163.4];
+
+// HP ΔP (absolute value from analysis summary — pre/post aggregated)
+const dpLabels = ['B1 Pre-Outage','B1 Post-Outage','B2 Pre-Outage','B2 Post-Outage'];
+const dpValues = [607.0, 642.5, 593.2, 705.7];
+const dpColors = ['rgba(88,166,255,.6)', 'rgba(88,166,255,.85)', 'rgba(248,81,73,.5)', 'rgba(248,81,73,.95)'];
+
+// Outage reference line at index 7.5 (between มี.ค. and เม.ย.)
+const outageRef = {
+  id: 'outageRef',
+  afterDraw(chart) {
+    const { ctx, scales: { x, y } } = chart;
+    const xPos = x.getPixelForValue(7.5);
+    ctx.save();
+    ctx.beginPath();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = 'rgba(248,81,73,.5)';
+    ctx.lineWidth = 1.5;
+    ctx.moveTo(xPos, y.top);
+    ctx.lineTo(xPos, y.bottom);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(248,81,73,.7)';
+    ctx.font = '10px Segoe UI';
+    ctx.fillText('Outage', xPos + 4, y.top + 12);
+    ctx.restore();
+  }
+};
+
+const CHART_DEFAULTS = {
+  responsive: true, maintainAspectRatio: false,
+  interaction: { mode: 'index', intersect: false },
+  plugins: {
+    legend: { labels: { color: '#8b949e', font: { size: 11 }, boxWidth: 14 } },
+    tooltip: { backgroundColor: '#1c2128', borderColor: '#30363d', borderWidth: 1,
+               titleColor: '#e6edf3', bodyColor: '#8b949e' }
+  },
+  scales: {
+    x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } },
+    y: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: '#21262d' } }
+  }
+};
+
+// ── 1. ST Heat Rate Monthly ────────────────────────────────────────────────
+new Chart(document.getElementById('stHRChart'), {
+  type: 'line',
+  data: {
+    labels: months,
+    datasets: [
+      { label: 'B1 ST Heat Rate', data: stHR_B1, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.08)', fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+      { label: 'B2 ST Heat Rate', data: stHR_B2, borderColor: '#f85149', backgroundColor: 'rgba(248,81,73,.08)', fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+    ]
+  },
+  options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins, outageRef },
+    scales: { ...CHART_DEFAULTS.scales,
+      y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'kJ/kWh', color: '#8b949e', font: { size: 10 } } }
+    }
+  },
+  plugins: [outageRef]
+});
+
+// ── 2. Waterfall / Decomposition bar ──────────────────────────────────────
+new Chart(document.getElementById('waterfallChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Primary\nHP Restriction', 'Secondary\nFGH/CPH', 'Minor\nOther', 'Total\nST HR Δ'],
+    datasets: [{
+      label: 'kJ/kWh',
+      data: [43.3, 17.7, 4.7, 65.7],
+      backgroundColor: ['rgba(248,81,73,.7)', 'rgba(210,153,34,.7)', 'rgba(139,148,158,.5)', 'rgba(248,81,73,.3)'],
+      borderColor: ['#f85149', '#d29922', '#8b949e', '#f85149'],
+      borderWidth: 1.5, borderRadius: 4,
+    }]
+  },
+  options: {
+    ...CHART_DEFAULTS,
+    plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } },
+    scales: { ...CHART_DEFAULTS.scales, y: { ...CHART_DEFAULTS.scales.y, beginAtZero: true } }
+  }
+});
+
+// ── 3. HP ΔP Bar ───────────────────────────────────────────────────────────
+new Chart(document.getElementById('dpChart'), {
+  type: 'bar',
+  data: {
+    labels: dpLabels,
+    datasets: [{
+      label: 'HP Main Steam ΔP (kPa)',
+      data: dpValues,
+      backgroundColor: dpColors,
+      borderWidth: 0, borderRadius: 4,
+    }]
+  },
+  options: {
+    ...CHART_DEFAULTS,
+    plugins: { ...CHART_DEFAULTS.plugins, legend: { display: false } },
+    scales: { ...CHART_DEFAULTS.scales,
+      y: { ...CHART_DEFAULTS.scales.y, min: 550,
+           title: { display: true, text: 'kPa', color: '#8b949e', font: { size: 10 } } }
+    }
+  }
+});
+
+// ── 4. CC Heat Rate ────────────────────────────────────────────────────────
+new Chart(document.getElementById('ccHRChart'), {
+  type: 'line',
+  data: {
+    labels: months,
+    datasets: [
+      { label: 'B1 CC Heat Rate', data: ccHR_B1, borderColor: '#58a6ff', backgroundColor: 'rgba(88,166,255,.06)', fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+      { label: 'B2 CC Heat Rate', data: ccHR_B2, borderColor: '#f85149', backgroundColor: 'rgba(248,81,73,.06)', fill: true, tension: 0.3, borderWidth: 2, pointRadius: 3 },
+    ]
+  },
+  options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins },
+    scales: { ...CHART_DEFAULTS.scales,
+      y: { ...CHART_DEFAULTS.scales.y, title: { display: true, text: 'kJ/kWh', color: '#8b949e', font: { size: 10 } } }
+    }
+  },
+  plugins: [outageRef]
+});
+
+// ── 5. Before/After table ─────────────────────────────────────────────────
+const metrics = [
+  { cat:'Gas Turbine', name:'GT Heat Rate',              unit:'kJ/kWh', b1p:8637.1, b1o:8678.7, b2p:8653.3, b2o:8664.3, did:-30.6,  note:'GT ดีขึ้น ✓', noteClass:'val-down' },
+  { cat:'Gas Turbine', name:'GT Compressor Efficiency',  unit:'%',      b1p:93.07,  b1o:93.35,  b2p:93.03,  b2o:93.46,  did:+0.16,  note:'ดีขึ้น ✓',     noteClass:'val-down' },
+  { cat:'Gas Turbine', name:'GT Power Output',           unit:'MW',     b1p:465.9,  b1o:478.6,  b2p:466.4,  b2o:479.4,  did:+0.40,  note:'ปกติ',          noteClass:'val-neu'  },
+  { cat:'Steam Turbine', name:'ST Heat Rate',            unit:'kJ/kWh', b1p:9132.1, b1o:9111.0, b2p:9116.6, b2o:9161.2, did:+65.7,  note:'⚠ เสื่อม',      noteClass:'val-up'   },
+  { cat:'Steam Turbine', name:'HP Turbine Inlet Press',  unit:'MPa',    b1p:14.981, b1o:15.578, b2p:14.925, b2o:15.444, did:-0.078, note:'ลดลง B2',       noteClass:'val-up'   },
+  { cat:'Steam Turbine', name:'HP Turbine Inlet Temp',   unit:'°C',     b1p:567.95, b1o:568.87, b2p:567.92, b2o:568.12, did:-0.72,  note:'JT Signature',  noteClass:'val-up'   },
+  { cat:'Smoking Gun',   name:'HP Main Steam ΔP',        unit:'kPa',    b1p:607.0,  b1o:642.5,  b2p:593.2,  b2o:705.7,  did:+77.1,  note:'🔴 Smoking Gun',noteClass:'val-up'   },
+  { cat:'Smoking Gun',   name:'Loss Coeff k (×1e-5)',    unit:'',       b1p:302.1,  b1o:299.0,  b2p:295.4,  b2o:324.1,  did:+31.8,  note:'B2-specific ↑', noteClass:'val-up'   },
+  { cat:'Condenser',     name:'Condenser Cleanliness',   unit:'%',      b1p:158.8,  b1o:162.5,  b2p:130.8,  b2o:148.8,  did:+14.3,  note:'ดีขึ้น ✓',      noteClass:'val-down' },
+  { cat:'Condenser',     name:'Condenser Vacuum',        unit:'kPaA',   b1p:7.09,   b1o:7.95,   b2p:7.16,   b2o:7.90,   did:-0.12,  note:'ปกติ',           noteClass:'val-neu'  },
+  { cat:'HRSG',          name:'HP Steam Press (HRSG Out)',unit:'MPa',   b1p:15.587, b1o:16.224, b2p:15.516, b2o:16.150, did:-0.003, note:'Match B1 ✓',    noteClass:'val-down' },
+  { cat:'HRSG',          name:'HP Steam Temp (HRSG Out)',unit:'°C',     b1p:570.25, b1o:571.16, b2p:570.50, b2o:571.30, did:-0.10,  note:'Match B1 ✓',    noteClass:'val-down' },
+  { cat:'HRSG',          name:'HRSG Efficiency',         unit:'%',      b1p:89.95,  b1o:90.47,  b2p:90.42,  b2o:90.66,  did:-0.28,  note:'ปกติ ✓',        noteClass:'val-down' },
+];
+
+const catColors = {
+  'Gas Turbine': '#58a6ff', 'Steam Turbine': '#f85149',
+  'Smoking Gun': '#ff6b35', 'Condenser': '#3fb950', 'HRSG': '#a78bfa'
+};
+let lastCat = '';
+const tbody = document.getElementById('compare-tbody');
+metrics.forEach(m => {
+  const catHeader = m.cat !== lastCat
+    ? `<tr style="background:#0d1117;"><td colspan="10" style="padding:6px 10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:${catColors[m.cat]||'#8b949e'}">${m.cat}</td></tr>`
+    : '';
+  lastCat = m.cat;
+  const b1d = (m.b1o - m.b1p).toFixed(m.unit === 'MPa' ? 3 : m.unit === 'kPa' ? 1 : 1);
+  const b2d = (m.b2o - m.b2p).toFixed(m.unit === 'MPa' ? 3 : m.unit === 'kPa' ? 1 : 1);
+  const didStr = m.did > 0 ? `+${m.did}` : `${m.did}`;
+  const didClass = m.noteClass;
+  tbody.innerHTML += catHeader + `<tr style="border-bottom:1px solid #161b22;"
+    onmouseover="this.style.background='rgba(255,255,255,.03)'"
+    onmouseout="this.style.background=''">
+    <td class="metric-name" style="padding:8px 10px;">${m.name}</td>
+    <td style="padding:8px 10px;color:var(--text2);font-size:11px;">${m.unit}</td>
+    <td style="padding:8px 10px;text-align:right;color:var(--text2);">${m.b1p}</td>
+    <td style="padding:8px 10px;text-align:right;color:var(--text2);">${m.b1o}</td>
+    <td style="padding:8px 10px;text-align:right;font-size:11px;" class="${+b1d > 0 ? 'val-up' : +b1d < 0 ? 'val-down' : 'val-neu'}">${b1d > 0 ? '+' : ''}${b1d}</td>
+    <td style="padding:8px 10px;text-align:right;color:var(--text2);">${m.b2p}</td>
+    <td style="padding:8px 10px;text-align:right;color:var(--text2);">${m.b2o}</td>
+    <td style="padding:8px 10px;text-align:right;font-size:11px;" class="${+b2d > 0 ? 'val-up' : +b2d < 0 ? 'val-down' : 'val-neu'}">${b2d > 0 ? '+' : ''}${b2d}</td>
+    <td style="padding:8px 10px;text-align:right;font-weight:700;" class="${didClass}">${didStr}</td>
+    <td style="padding:8px 10px;font-size:11px;" class="${m.noteClass}">${m.note}</td>
+  </tr>`;
+});
+</script>
+</body>
+</html>
